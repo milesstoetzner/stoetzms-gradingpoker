@@ -16,7 +16,6 @@ export const meta: MetaFunction = () => {
 };
 
 export default function Index() {
-
     const [searchParams, setSearchParams] = useSearchParams();
 
     const [process, setProcess] = React.useState<string>('JOIN')
@@ -24,9 +23,12 @@ export default function Index() {
     const [room, setRoom] = React.useState<string>(getRoom())
 
     function getRoom() {
-        return searchParams.get('room') ?? cuid.init({
-            length: 8,
-        })() + '-' + randomName()
+        const found = searchParams.get('room')
+        if (found && found !== '') return found
+
+        const generated = cuid.init({length: 8,})() + '-' + randomName()
+        // TODO: setSearchParams({room: generated})
+        return generated
     }
 
     function onRoomChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -53,6 +55,7 @@ export default function Index() {
     }
 
     return (
+
         <div className="bg-muted flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
 
             {process === "JOIN" ? (
@@ -70,7 +73,7 @@ export default function Index() {
 
 
             {process === "ROOM" ? (
-                <div className="flex w-full max-w-sm flex-col gap-6">
+                <div className="flex w-full max-w-6xl flex-col gap-6">
                     <RoomCard room={room} user={user} setProcess={setProcess}/>
                 </div>
             ) : null}
