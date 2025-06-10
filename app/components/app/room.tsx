@@ -13,6 +13,16 @@ import average from 'average'
 import median from 'median'
 
 import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+    SelectGroup,
+    SelectLabel
+} from "~/components/ui/select"
+
+import {
     Table,
     TableBody,
     TableCell,
@@ -20,11 +30,7 @@ import {
     TableHeader,
     TableRow,
 } from "~/components/ui/table"
-import {CircleArrowLeft, Eye, EyeOff, Trash2} from "lucide-react";
-
-// TODO: button to share url
-
-// TODO: vote buttons (two scales?!)
+import {CircleArrowLeft, Eye, EyeOff, Share2, Trash2} from "lucide-react";
 
 // TODO: clear votes button
 
@@ -44,6 +50,8 @@ type Distribution = {
     relative: number
 }
 
+const STILL_VOTING = 'Still voting ...'
+
 
 export function RoomCard(props: {
     room: string,
@@ -55,7 +63,7 @@ export function RoomCard(props: {
 
     const [users, setUsers] = React.useState<User[]>([{
         name: 'admiring-ganguly',
-        avatar: avatar.getRandomAvatar(2)
+        avatar: avatar.getRandomAvatar(2),
     },
         {
             name: 'magical-nightingale',
@@ -80,6 +88,45 @@ export function RoomCard(props: {
 
     const HiddenLabel =
         <Button className="w-full cursor-default hover:bg-black"><EyeOff/> Hidden</Button>
+
+    function onVoteChange(value: string) {
+        // TODO: do something with the vote
+    }
+
+    const VoteSelect = <Select onValueChange={onVoteChange}>
+        <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder={STILL_VOTING}/>
+        </SelectTrigger>
+        <SelectContent>
+            <SelectGroup className="pb-2">
+                <SelectLabel>General</SelectLabel>
+                <SelectItem value="Supervisor">Supervisor</SelectItem>
+                <SelectItem value="Withhold">Withhold</SelectItem>
+            </SelectGroup>
+
+            <SelectGroup className="pt-2 pb-2 border-t border-b">
+                <SelectLabel>Proposal</SelectLabel>
+                <SelectItem value="Passed">Passed</SelectItem>
+                <SelectItem value="Rework">Rework</SelectItem>
+                <SelectItem value="Failed">Failed</SelectItem>
+            </SelectGroup>
+
+            <SelectGroup className="pt-2">
+                <SelectLabel>Grading</SelectLabel>
+                <SelectItem value="1.0">1.0</SelectItem>
+                <SelectItem value="1.3">1.3</SelectItem>
+                <SelectItem value="1.7">1.7</SelectItem>
+                <SelectItem value="2.0">2.0</SelectItem>
+                <SelectItem value="2.3">2.3</SelectItem>
+                <SelectItem value="2.7">2.7</SelectItem>
+                <SelectItem value="3.0">3.0</SelectItem>
+                <SelectItem value="3.3">3.3</SelectItem>
+                <SelectItem value="3.7">3.7</SelectItem>
+                <SelectItem value="4.0">4.0</SelectItem>
+                <SelectItem value="5.0">5.0</SelectItem>
+            </SelectGroup>
+        </SelectContent>
+    </Select>
 
     // TODO: how to call this only once?
     function getVotes() {
@@ -146,13 +193,13 @@ export function RoomCard(props: {
                                     {users.map((user) => (
                                         <TableRow>
                                             <TableCell>
-                                                <Avatar className="border-gray-300" style={{borderWidth: '1px'}}>
+                                                <Avatar style={{borderWidth: '1px'}}>
                                                     <AvatarImage
                                                         src={`data:image/svg+xml;base64,${btoa(user.avatar)}`}></AvatarImage>
                                                 </Avatar>
                                             </TableCell>
                                             <TableCell>{user.name}</TableCell>
-                                            <TableCell>{user.vote ? hidden ? HiddenLabel : user.vote : 'Still voting ...'}</TableCell>
+                                            <TableCell>{user.vote ? hidden ? HiddenLabel : user.vote : user.name === props.user ? VoteSelect : STILL_VOTING}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -186,7 +233,7 @@ export function RoomCard(props: {
 
                         {hidden ? <div className="h-full flex items-center justify-center">
                                 <p className="text-sm text-center">
-                                    Still voting ...
+                                    {STILL_VOTING}
                                 </p>
                             </div> :
 
@@ -205,7 +252,7 @@ export function RoomCard(props: {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            <TableRow  className="h-[57px]">
+                                            <TableRow className="h-[57px]">
                                                 <TableCell>
                                                     Votes
                                                 </TableCell>
@@ -215,7 +262,7 @@ export function RoomCard(props: {
                                             </TableRow>
 
 
-                                            <TableRow  className="h-[57px]">
+                                            <TableRow className="h-[57px]">
                                                 <TableCell>
                                                     Average
                                                 </TableCell>
@@ -225,7 +272,7 @@ export function RoomCard(props: {
                                             </TableRow>
 
 
-                                            <TableRow  className="h-[57px]">
+                                            <TableRow className="h-[57px]">
                                                 <TableCell>
                                                     Median
                                                 </TableCell>
@@ -235,7 +282,7 @@ export function RoomCard(props: {
                                             </TableRow>
 
 
-                                            <TableRow  className="h-[57px]">
+                                            <TableRow className="h-[57px]">
                                                 <TableCell>
                                                     Most
                                                 </TableCell>
@@ -244,7 +291,7 @@ export function RoomCard(props: {
                                                 </TableCell>
                                             </TableRow>
 
-                                            <TableRow  className="h-[57px]">
+                                            <TableRow className="h-[57px]">
                                                 <TableCell>
                                                     Distribution
                                                 </TableCell>
@@ -253,7 +300,7 @@ export function RoomCard(props: {
                                                         <tbody>
                                                         {getVotes().distribution.map(dist => (
                                                             <tr key={dist.vote}>
-                                                                <td className="w-[100px]">{dist.vote}</td>
+                                                                <td className="w-[100px]">{dist.vote == 'undefined' ? STILL_VOTING : dist.vote }</td>
                                                                 <td className="w-[50px]">{dist.absolute}</td>
                                                                 <td>{dist.relative.toFixed(0)}&#37;</td>
                                                             </tr>
