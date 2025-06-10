@@ -35,6 +35,9 @@ importers:
       '@scaleway/random-name':
         specifier: ^5.1.1
         version: 5.1.1
+      average:
+        specifier: ^1.0.0
+        version: 1.0.0
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -47,6 +50,9 @@ importers:
       lucide-react:
         specifier: ^0.513.0
         version: 0.513.0(react@18.3.1)
+      median:
+        specifier: ^0.0.2
+        version: 0.0.2
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -1423,6 +1429,9 @@ packages:
     resolution: {integrity: sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==}
     engines: {node: '>= 0.4'}
 
+  average@1.0.0:
+    resolution: {integrity: sha512-KqxyIOYkNDoOSQu9ewDNDE0h0qKbGgi8Yk+dmNBxjWhZvTUmYBX5k0xY/orpCwKBFrnfkgbQs6R2Qf8QFc5pjA==}
+
   axe-core@4.10.3:
     resolution: {integrity: sha512-Xm7bpRXnDSX2YE2YFfBk2FnF0ep6tmG7xPh8iHee8MIcrgq762Nkce856dYtJYLkuIoYZvGfTs/PbZhideTcEg==}
     engines: {node: '>=4'}
@@ -2646,6 +2655,9 @@ packages:
   media-typer@0.3.0:
     resolution: {integrity: sha512-dq+qelQ9akHpcOl/gUVRTxVIOkAJ1wR3QAvb4RsVjS8oVoFjDGTc679wJYmUmknUF5HwMLOgb5O+a3KxfWapPQ==}
     engines: {node: '>= 0.6'}
+
+  median@0.0.2:
+    resolution: {integrity: sha512-yrVT3CsP0Lqm1xuKjGHdRVt4va3rQu3UCidWboXlwnsflxRUHTKQIatvSQML8n32jH6XzY2jrdClYMUOkdrBHQ==}
 
   merge-descriptors@1.0.3:
     resolution: {integrity: sha512-gaNvAS7TZ897/rVaZ0nMtAyxNyi/pdbjbAwUpFQpN70GqnVfOiXpeUUMKRBmzXaSQ8DdTX4/0ms62r2K+hE6mQ==}
@@ -5265,6 +5277,8 @@ snapshots:
     dependencies:
       possible-typed-array-names: 1.1.0
 
+  average@1.0.0: {}
+
   axe-core@4.10.3: {}
 
   axobject-query@4.1.0: {}
@@ -6778,6 +6792,8 @@ snapshots:
       '@babel/runtime': 7.27.6
 
   media-typer@0.3.0: {}
+
+  median@0.0.2: {}
 
   merge-descriptors@1.0.3: {}
 
