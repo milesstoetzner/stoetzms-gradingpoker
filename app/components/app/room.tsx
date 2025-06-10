@@ -45,17 +45,13 @@ type Distribution = {
 }
 
 
-// TODO: make result table same height as user table
-
 export function RoomCard(props: {
     room: string,
     user: string,
     setProcess: (process: string) => void;
 }) {
 
-    // TODO: make "true" the default
-    const [hidden, setHidden] = React.useState<boolean>(false);
-
+    const [hidden, setHidden] = React.useState<boolean>(true);
 
     const [users, setUsers] = React.useState<User[]>([{
         name: 'admiring-ganguly',
@@ -165,7 +161,8 @@ export function RoomCard(props: {
                         </CardContent>
 
                         <CardFooter className="flex-col gap-2">
-                            <Button type="submit" className="w-full" onClick={() => setHidden(false)} disabled={!users.find(it => it.vote)}>
+                            <Button type="submit" className="w-full" onClick={() => setHidden(false)}
+                                    disabled={!users.find(it => it.vote)}>
                                 <Eye/> Show
                             </Button>
 
@@ -187,7 +184,11 @@ export function RoomCard(props: {
 
                     <div className="flex flex-col gap-6 bg-muted">
 
-                        {hidden ? 'Still voting ...' :
+                        {hidden ? <div className="h-full flex items-center justify-center">
+                                <p className="text-sm text-center">
+                                    Still voting ...
+                                </p>
+                            </div> :
 
                             <React.Fragment>
                                 <CardHeader>
@@ -204,7 +205,7 @@ export function RoomCard(props: {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            <TableRow>
+                                            <TableRow  className="h-[57px]">
                                                 <TableCell>
                                                     Votes
                                                 </TableCell>
@@ -214,7 +215,7 @@ export function RoomCard(props: {
                                             </TableRow>
 
 
-                                            <TableRow>
+                                            <TableRow  className="h-[57px]">
                                                 <TableCell>
                                                     Average
                                                 </TableCell>
@@ -224,7 +225,7 @@ export function RoomCard(props: {
                                             </TableRow>
 
 
-                                            <TableRow>
+                                            <TableRow  className="h-[57px]">
                                                 <TableCell>
                                                     Median
                                                 </TableCell>
@@ -234,7 +235,7 @@ export function RoomCard(props: {
                                             </TableRow>
 
 
-                                            <TableRow>
+                                            <TableRow  className="h-[57px]">
                                                 <TableCell>
                                                     Most
                                                 </TableCell>
@@ -243,8 +244,8 @@ export function RoomCard(props: {
                                                 </TableCell>
                                             </TableRow>
 
-                                            <TableRow>
-                                                <TableCell className="align-text-top">
+                                            <TableRow  className="h-[57px]">
+                                                <TableCell>
                                                     Distribution
                                                 </TableCell>
                                                 <TableCell>
