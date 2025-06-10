@@ -38,7 +38,7 @@ export function ResultContent(props: {
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead>Statistic</TableHead>
+                        <TableHead className="w-[100px]">Metric</TableHead>
                         <TableHead>Value</TableHead>
                     </TableRow>
                 </TableHeader>
@@ -78,30 +78,44 @@ export function ResultContent(props: {
                             Most
                         </TableCell>
                         <TableCell>
-                            {distribution[0].vote}
-                        </TableCell>
-                    </TableRow>
-
-                    <TableRow className="h-[57px]">
-                        <TableCell>
-                            Distribution
-                        </TableCell>
-                        <TableCell>
-                            <table>
-                                <tbody>
-                                {distribution.map(dist => (
-                                    <tr key={dist.vote}>
-                                        <td className="w-[100px]">{dist.vote == 'undefined' ? 'Still voting ...' : dist.vote}</td>
-                                        <td className="w-[50px]">{dist.absolute}</td>
-                                        <td>{(dist.absolute / strings.length * 100).toFixed(0)}&#37;</td>
-                                    </tr>
-                                ))}
-                                </tbody>
-                            </table>
+                            {distribution.filter(it => it.absolute === distribution[0].absolute).map(it => it.vote).join(', ')}
                         </TableCell>
                     </TableRow>
                 </TableBody>
             </Table>
+
+            <div className="pt-12"/>
+
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Vote</TableHead>
+                        <TableHead>Absolute</TableHead>
+                        <TableHead>Relative</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+
+                    {distribution.map(dist => (
+
+                        <TableRow key={dist.vote} className="h-[57px]">
+                            <TableCell>
+                                {dist.vote == 'undefined' ? 'Still voting ...' : dist.vote}
+                            </TableCell>
+                            <TableCell>
+                                {dist.absolute}
+                            </TableCell>
+                            <TableCell>
+                                {(dist.absolute / strings.length * 100).toFixed(0)}&#37;
+                            </TableCell>
+                        </TableRow>
+                    ))}
+
+
+                </TableBody>
+            </Table>
+
+
         </CardContent>
     </React.Fragment>)
 }

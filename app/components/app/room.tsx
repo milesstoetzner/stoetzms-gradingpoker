@@ -53,7 +53,7 @@ export function RoomCard(props: {
     },
         {
             name: 'magical-nightingale',
-            vote: 1,
+            vote: '1.0',
             avatar: avatar.getRandomAvatar(2)
         },
         {
@@ -73,7 +73,6 @@ export function RoomCard(props: {
 
 
     function onVoteChange(value: string) {
-        // TODO: publish vote
         setVote(props.user, value)
     }
 
@@ -95,7 +94,7 @@ export function RoomCard(props: {
                             <Share/>
                         </CardHeader>
 
-                        <CardContent className="min-h-[400px]">
+                        <CardContent className="min-h-[450px]">
                             <Table>
                                 <TableHeader>
                                     <TableRow>

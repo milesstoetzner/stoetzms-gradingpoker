@@ -26,9 +26,7 @@ export default function Index() {
     function getRoom() {
         const found = searchParams.get('room')
         if (found && found !== '') return found
-
-        const generated = cuid.init({length: 8,})() + '-' + randomName()
-        return generated
+        return randomName()
     }
 
     React.useEffect(() => {
