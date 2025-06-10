@@ -23,18 +23,11 @@ import {ResultContent} from "~/components/app/result";
 import Vote from "~/components/app/vote";
 import Share from "~/components/app/share";
 import Hidden from "~/components/app/hidden";
+import {io, Socket} from 'socket.io-client';
 
 // TODO: publish and listen on "join" (when joining, new client needs current state)
 
 // TODO: publish and listen on "disconnect"
-
-// TODO: publish and listen on "set vote"
-
-// TODO: publish and listen on "show votes"
-
-// TODO: publish and listen on "hide votes"
-
-// TODO: publish and listen on "clear votes"
 
 // TODO: remove internal state
 
@@ -44,11 +37,78 @@ export type User = {
     avatar: string
 }
 
+
 export function RoomCard(props: {
     room: string,
     user: string,
     setProcess: (process: string) => void;
 }) {
+
+    // TODO: where to handle this socket connection?!
+
+    // TODO: join room
+    const socket = io(window.location.href, {
+        autoConnect: false
+    });
+
+    const [connected, setConnected] = React.useState(socket.connected);
+    React.useEffect(() => {
+        function onSocketConnect(socket: Socket) {
+            socket.join(props.room);
+
+            setConnected(true);
+        }
+
+        function onSocketDisconnect() {
+            setConnected(false);
+        }
+
+        function onSocketSetUsers() {
+            // TODO. set users
+        }
+
+        function onSocketAddUser() {
+            // TODO: add user
+        }
+
+        function onSocketRemoveUser() {
+            // TODO: remove user
+        }
+
+        function onSocketSetVote() {
+            // TODO: set vote
+        }
+
+        function onSocketShowVotes() {
+            setHidden(false)
+        }
+
+        function onSocketHideVotes() {
+            setHidden(true)
+        }
+
+        function onSocketClearVotes() {
+            // TODO: clear votes
+        }
+
+        socket.on('connection', onSocketConnect);
+        socket.on('disconnect', onSocketDisconnect);
+
+        // TODO: on errors (different kinds)
+
+        socket.on('set-users', onSocketSetUsers);
+        socket.on('add-user', onSocketAddUser);
+        socket.on('remove-user', onSocketRemoveUser);
+        socket.on('set-vote', onSocketSetVote);
+        socket.on('show-votes', onSocketShowVotes);
+        socket.on('hide-votes', onSocketHideVotes);
+        socket.on('clear-votes', onSocketClearVotes);
+
+        return () => {
+            socket.disconnect()
+        };
+    }, []);
+
 
     const [hidden, setHidden] = React.useState<boolean>(true);
 
@@ -78,6 +138,7 @@ export function RoomCard(props: {
 
 
     function onVoteChange(value: string) {
+        onLocalHideVotes()
         setVote(props.user, value)
     }
 
@@ -87,6 +148,36 @@ export function RoomCard(props: {
         found.vote = vote
         setUsers(Array.from(users))
     }
+
+    function onLocalShowVotes() {
+        setHidden(false)
+        socket.emit('show-votes')
+    }
+
+    function onLocalHideVotes() {
+        setHidden(true)
+        socket.emit('hide-votes')
+    }
+
+    function onLocalClearVotes() {
+        // TODO: clear votes
+        socket.emit('clear-votes')
+    }
+
+    function onLocalBack() {
+        socket.disconnect()
+        props.setProcess('JOIN')
+    }
+
+    React.useEffect(() => {
+        const onUnload = () => {
+            socket.disconnect()
+        }
+
+        window.addEventListener("beforeunload", onUnload)
+
+        return () => window.removeEventListener("beforeunload", onUnload)
+    }, [])
 
     return (
         <div className="flex flex-col gap-6">
@@ -129,26 +220,27 @@ export function RoomCard(props: {
                         </CardContent>
 
                         <CardFooter className="flex-col gap-2">
-                            <Button type="submit" className="w-full" onClick={() => setHidden(false)}
+                            <Button type="submit" className="w-full" onClick={onLocalShowVotes}
                                     disabled={!users.find(it => it.vote)}>
                                 <Eye/> Show
                             </Button>
 
                             <Button type="submit" className="w-full" variant="secondary"
-                                    onClick={() => setHidden(true)}>
+                                    onClick={onLocalHideVotes}>
                                 <EyeOff/> Hide
                             </Button>
 
-                            <Button type="submit" className="w-full" variant="secondary">
+                            <Button type="submit" className="w-full" variant="secondary" onClick={onLocalClearVotes}>
                                 <Trash2/> Clear
                             </Button>
 
-                            <Button type="submit" className="w-full" onClick={() => props.setProcess('JOIN')}
+                            <Button type="submit" className="w-full" onClick={onLocalBack}
                                     variant="secondary">
                                 <CircleArrowLeft/> Back
                             </Button>
                         </CardFooter>
                     </div>
+
                     <div className="flex flex-col gap-6 bg-muted">
 
                         {hidden ? <div className="h-full flex items-center justify-center">
