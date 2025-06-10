@@ -189,7 +189,7 @@ export function RoomCard(props: {
             <Card className="overflow-hidden p-0">
                 <div className="grid p-0 md:grid-cols-2">
                     <div className="flex flex-col gap-6">
-                        <CardHeader className="flex flex-row justify-between items-center" style={{marginTop: '-8px'}}>
+                        <CardHeader className="flex flex-row justify-between items-center" style={{marginTop: '-12px', marginBottom: '-10px'}}>
                             <CardTitle>{props.room}</CardTitle>
 
                             <TooltipProvider>
