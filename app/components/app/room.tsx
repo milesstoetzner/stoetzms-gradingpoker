@@ -11,6 +11,13 @@ import {Avatar, AvatarImage} from "~/components/ui/avatar"
 import * as avatar from "@fractalsoftware/random-avatar-generator";
 import average from 'average'
 import median from 'median'
+import copy from 'copy-to-clipboard';
+
+import {
+    Tooltip,
+    TooltipContent, TooltipProvider,
+    TooltipTrigger,
+} from "~/components/ui/tooltip"
 
 import {
     Select,
@@ -31,6 +38,7 @@ import {
     TableRow,
 } from "~/components/ui/table"
 import {CircleArrowLeft, Eye, EyeOff, Share2, Trash2} from "lucide-react";
+import {toast} from "sonner";
 
 // TODO: clear votes button
 
@@ -171,13 +179,32 @@ export function RoomCard(props: {
         }
     }
 
+    function share() {
+        copy(window.location.href)
+        toast("Copied link to clipboard!")
+    }
+
     return (
         <div className="flex flex-col gap-6">
             <Card className="overflow-hidden p-0">
                 <div className="grid p-0 md:grid-cols-2">
                     <div className="flex flex-col gap-6">
-                        <CardHeader>
+                        <CardHeader className="flex flex-row justify-between items-center" style={{marginTop: '-8px'}}>
                             <CardTitle>{props.room}</CardTitle>
+
+                            <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button variant="outline" className="size-8" onClick={share} >
+                                        <Share2 />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                   Copy Link
+                                </TooltipContent>
+                            </Tooltip>
+                            </TooltipProvider>
+
                         </CardHeader>
 
                         <CardContent className="min-h-[400px]">
@@ -191,7 +218,7 @@ export function RoomCard(props: {
                                 </TableHeader>
                                 <TableBody>
                                     {users.map((user) => (
-                                        <TableRow>
+                                        <TableRow key={user.name}>
                                             <TableCell>
                                                 <Avatar style={{borderWidth: '1px'}}>
                                                     <AvatarImage

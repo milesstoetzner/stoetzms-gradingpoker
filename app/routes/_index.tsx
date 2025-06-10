@@ -4,6 +4,7 @@ import React from "react";
 import {RoomCard} from "~/components/app/room";
 import * as cuid from '@paralleldrive/cuid2';
 import randomName from '@scaleway/random-name'
+import { Toaster } from "~/components/ui/sonner"
 
 import {useSearchParams} from "@remix-run/react";
 
@@ -57,6 +58,9 @@ export default function Index() {
     return (
 
         <div className="bg-muted flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
+
+            <Toaster position="top-right"/>
+
 
             {process === "JOIN" ? (
                 <div className="flex w-full max-w-sm flex-col gap-6">
