@@ -7,12 +7,8 @@ import {
     CardTitle,
 } from "~/components/ui/card"
 import React from "react";
-
 import {Avatar, AvatarImage} from "~/components/ui/avatar"
-
 import * as avatar from "@fractalsoftware/random-avatar-generator";
-
-
 import average from 'average'
 import median from 'median'
 
@@ -30,28 +26,26 @@ import {CircleArrowLeft, Eye, EyeOff, Trash2} from "lucide-react";
 
 // TODO: vote buttons (two scales?!)
 
-// TODO: connected users and their votes
-
 // TODO: clear votes button
 
 // TODO: show votes button
-
-// TODO: result box
 
 // TODO: sync any action via WebRTC (connect, disconnect, vote, show votes, clear votes)
 
 type User = {
     name: string
-    vote?: string
+    vote?: string | number
     avatar: string
 }
 
 type Distribution = {
-    [key: string]: {
-        absolute: number
-        relative: number
-    }
+    vote: string
+    absolute: number
+    relative: number
 }
+
+
+// TODO: make result table same height as user table
 
 export function RoomCard(props: {
     room: string,
@@ -59,11 +53,12 @@ export function RoomCard(props: {
     setProcess: (process: string) => void;
 }) {
 
-    const [hidden, setHidden] = React.useState<boolean>(true);
+    // TODO: make "true" the default
+    const [hidden, setHidden] = React.useState<boolean>(false);
 
 
     const [users, setUsers] = React.useState<User[]>([{
-        name: 'magical-nightingale',
+        name: 'admiring-ganguly',
         avatar: avatar.getRandomAvatar(2)
     },
         {
@@ -90,24 +85,37 @@ export function RoomCard(props: {
     const HiddenLabel =
         <Button className="w-full cursor-default hover:bg-black"><EyeOff/> Hidden</Button>
 
+    // TODO: how to call this only once?
     function getVotes() {
         const total = users.length
         const values = users.map(it => it.vote)
         const strings = users.map(it => String(it.vote))
         const numbers = users.map(it => Number(it.vote)).filter(it => !Number.isNaN(it))
 
-        const distribution: Distribution = strings.reduce<Distribution>((acc, cur) => {
-            const counter = acc[cur]
-            if (!counter) acc[cur] = {
-                absolute: 0,
-                relative: 0,
-            }
-            acc[cur].absolute += 1
-            // TODO: calculate this at the end
-            acc[cur].relative += 1
+        let distribution: Distribution[] = []
+        strings.forEach(vote => {
+            const found = distribution.find(it => it.vote === vote)
 
-            return acc
-        }, {})
+            if (found) {
+                found.absolute++
+            } else {
+                distribution.push({
+                    vote,
+                    absolute: 1,
+                    relative: -1,
+                })
+            }
+        })
+        distribution = distribution.map(it => ({
+            vote: it.vote,
+            absolute: it.absolute,
+            relative: it.absolute / total * 100,
+        }))
+        distribution = distribution.sort((a, b) => b.absolute - a.absolute)
+
+        console.log(distribution)
+
+        const most = distribution[0].vote
 
         return {
             total,
@@ -115,6 +123,7 @@ export function RoomCard(props: {
             numbers,
             median: median(numbers),
             average: average(numbers),
+            most,
             distribution
         }
     }
@@ -128,8 +137,7 @@ export function RoomCard(props: {
                             <CardTitle>{props.room}</CardTitle>
                         </CardHeader>
 
-                        <CardContent>
-
+                        <CardContent className="min-h-[400px]">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -157,7 +165,7 @@ export function RoomCard(props: {
                         </CardContent>
 
                         <CardFooter className="flex-col gap-2">
-                            <Button type="submit" className="w-full" onClick={() => setHidden(false)}>
+                            <Button type="submit" className="w-full" onClick={() => setHidden(false)} disabled={!users.find(it => it.vote)}>
                                 <Eye/> Show
                             </Button>
 
@@ -177,7 +185,7 @@ export function RoomCard(props: {
                         </CardFooter>
                     </div>
 
-                    <div className="bg-muted relative hidden md:block">
+                    <div className="flex flex-col gap-6 bg-muted">
 
                         {hidden ? 'Still voting ...' :
 
@@ -188,20 +196,74 @@ export function RoomCard(props: {
 
                                 <CardContent>
 
-                                    {getVotes().numbers} <br/>
-                                    {getVotes().values}
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Statistic</TableHead>
+                                                <TableHead>Value</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            <TableRow>
+                                                <TableCell>
+                                                    Votes
+                                                </TableCell>
+                                                <TableCell>
+                                                    {getVotes().total}
+                                                </TableCell>
+                                            </TableRow>
 
-                                    Votes: {getVotes().total} <br/>
-                                    Average: {average(getVotes().numbers)} <br/>
-                                    Median: {median(getVotes().numbers)} <br/>
 
-                                    Distribution: <br/>
+                                            <TableRow>
+                                                <TableCell>
+                                                    Average
+                                                </TableCell>
+                                                <TableCell>
+                                                    {getVotes().average.toFixed(2)}
+                                                </TableCell>
+                                            </TableRow>
 
-                                    {Object.entries(getVotes().distribution).map(([key, data]) => (
-                                        <React.Fragment key={key}>
-                                            {key}: {data.absolute} ({data.relative})
-                                        </React.Fragment>
-                                    ))}
+
+                                            <TableRow>
+                                                <TableCell>
+                                                    Median
+                                                </TableCell>
+                                                <TableCell>
+                                                    {getVotes().median.toFixed(2)}
+                                                </TableCell>
+                                            </TableRow>
+
+
+                                            <TableRow>
+                                                <TableCell>
+                                                    Most
+                                                </TableCell>
+                                                <TableCell>
+                                                    {getVotes().most}
+                                                </TableCell>
+                                            </TableRow>
+
+                                            <TableRow>
+                                                <TableCell className="align-text-top">
+                                                    Distribution
+                                                </TableCell>
+                                                <TableCell>
+                                                    <table>
+                                                        <tbody>
+                                                        {getVotes().distribution.map(dist => (
+                                                            <tr key={dist.vote}>
+                                                                <td className="w-[100px]">{dist.vote}</td>
+                                                                <td className="w-[50px]">{dist.absolute}</td>
+                                                                <td>{dist.relative.toFixed(0)}&#37;</td>
+                                                            </tr>
+                                                        ))}
+                                                        </tbody>
+                                                    </table>
+                                                </TableCell>
+                                            </TableRow>
+                                        </TableBody>
+                                    </Table>
+
 
                                 </CardContent>
                             </React.Fragment>
