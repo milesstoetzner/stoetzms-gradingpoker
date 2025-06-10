@@ -24,20 +24,25 @@ import Vote from "~/components/app/vote";
 import Share from "~/components/app/share";
 import Hidden from "~/components/app/hidden";
 
-// TODO: clear votes button
+// TODO: publish and listen on "join" (when joining, new client needs current state)
 
-// TODO: show votes button
+// TODO: publish and listen on "disconnect"
 
-// TODO: sync any action via WebRTC (connect, disconnect, vote, show votes, clear votes)
+// TODO: publish and listen on "set vote"
+
+// TODO: publish and listen on "show votes"
+
+// TODO: publish and listen on "hide votes"
+
+// TODO: publish and listen on "clear votes"
 
 // TODO: remove internal state
 
 export type User = {
     name: string
-    vote?: string | number
+    vote?: string
     avatar: string
 }
-
 
 export function RoomCard(props: {
     room: string,
@@ -63,7 +68,7 @@ export function RoomCard(props: {
         {
             name: 'amazing-brahmagupta',
             avatar: avatar.getRandomAvatar(2),
-            vote: 2,
+            vote: '2.0',
         },
         {
             name: 'vibrant-knuth',
@@ -76,7 +81,7 @@ export function RoomCard(props: {
         setVote(props.user, value)
     }
 
-    function setVote(user: string, vote: string | number) {
+    function setVote(user: string, vote: string) {
         const found = users.find(it => it.name === user)
         if (!found) return toast.error(`User ${user} not found!`)
         found.vote = vote
