@@ -20,6 +20,7 @@ import {
     User, Votes, Notification
 } from "~/socket/types";
 import Health from "~/components/app/health";
+import {useSearchParams} from "@remix-run/react";
 
 // TODO: remove debug state in JSX (as hidden parameter?)
 
@@ -28,6 +29,7 @@ export function RoomCard(props: {
     user: string,
     setProcess: (process: string) => void;
 }) {
+    const [searchParams, setSearchParams] = useSearchParams();
 
     // TODO: correct URL
     const [socket, _] = React.useState<Socket<ServerToClientEvents, ClientToServerEvents>>(() => io('http://localhost:3000', {
@@ -43,7 +45,7 @@ export function RoomCard(props: {
             id = socket.id!
             console.log('socket', id, 'on', 'connect')
             setConnected(true);
-            socket.emit(ClientEvents.JOIN_ROOM, {user: props.user, room: props.room});
+            socket.emit(ClientEvents.JOIN_ROOM, {user: props.user, room: props.room, seed: searchParams.has('seed')});
             toast('Connected ...')
         });
 
@@ -249,13 +251,12 @@ export function RoomCard(props: {
             <br/>
             <br/>
 
-            {false && <React.Fragment>
+            {searchParams.has('debug') && <React.Fragment>
 
                 <pre>connected: {JSON.stringify(socket.connected, null, 4)}</pre>
                 <pre>hidden: {JSON.stringify(hidden, null, 4)}</pre>
-                <pre>{JSON.stringify(users, null, 4)}</pre>
-                <pre>{JSON.stringify(votes, null, 4)}</pre>
-
+                <pre>users: {JSON.stringify(users, null, 4)}</pre>
+                <pre>votes: {JSON.stringify(votes, null, 4)}</pre>
 
             </React.Fragment>}
 

@@ -30,14 +30,22 @@ export default function Index() {
 
     React.useEffect(() => {
         if (!searchParams.get('room')) {
-            setSearchParams({room});
+            setSearchParam('room', room)
         }
     }, [room, searchParams, setSearchParams]);
 
     function onRoomChange(e: React.ChangeEvent<HTMLInputElement>) {
         const changed = e.target.value;
-        setSearchParams({room: changed})
+        setSearchParam('room', changed)
         setRoom(changed)
+    }
+
+    function setSearchParam(key: string, value: string) {
+        setSearchParams(prev => {
+            const params = new URLSearchParams(prev);
+            params.set(key, value);
+            return params;
+        });
     }
 
     const [user, setUser] = React.useState<string>(getUser())

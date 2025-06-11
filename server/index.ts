@@ -1,7 +1,7 @@
 import {Server} from "socket.io";
 import {ClientEvents, InitState, JoinRoom, ServerEvents, SetVote, User} from "~/socket/types";
-import {DummyUsers, DummyVotes} from "./dummy";
 import {generateAvatar, haeParameter, haeVoid} from "./utils";
+import {generateSeed} from "./seed";
 
 // TODO: clean up stale rooms, e.g., no activity since 1 week
 
@@ -36,14 +36,18 @@ io.on("connection", (socket) => {
 
         // Init room
         if (!store[data.room]) {
-            // TODO: drop dummies (per query param)
-            store[data.room] = {
-                hidden: true,
-                users: DummyUsers(),
-                votes: DummyVotes()
-            }
+            store[data.room] = {hidden: true, users: [], votes: {}}
         }
+
+        // Room
         const room = store[data.room]
+
+        // Seed
+        if (data.seed) {
+            const seed = generateSeed()
+            room.users = seed.users
+            room.votes = seed.votes
+        }
 
         // Check if another user with same name exists
         const found = room.users.find(it => it.name === socket.data.user)

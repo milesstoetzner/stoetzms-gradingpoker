@@ -25,6 +25,7 @@ export enum ServerEvents {
 export type JoinRoom = {
     room: string
     user: string
+    seed?: boolean
 }
 
 export type InitState = {
