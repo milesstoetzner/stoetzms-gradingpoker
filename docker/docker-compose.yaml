@@ -1,7 +1,0 @@
-services:
-  frontend:
-    build:
-      dockerfile: docker/app/Dockerfile
-      context: ..
-    ports:
-      - '3000:80'
