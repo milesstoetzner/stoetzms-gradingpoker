@@ -1,16 +1,11 @@
-FROM node:22-alpine AS build
+FROM node:22-alpine
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 COPY backend/package.json .
 COPY backend/pnpm-lock.yaml .
 RUN pnpm install
-COPY backend/. .
-COPY spec /
+COPY backend .
+COPY spec ../spec
 RUN pnpm run build
-
-
-FROM node:22-alpine AS run
-WORKDIR /app
-COPY --from=build /app/build/ .
-EXPOSE 80
-CMD ["node", "index.js"]
+EXPOSE 3000
+CMD ["node", "build/index.js"]
