@@ -52,13 +52,15 @@ export type User = {
     avatar: string
 }
 
+export type Ack = () => void
+
 export type Notification = {
     message: string
 }
 
 export interface ClientToServerEvents {
     [ClientEvents.JOIN_ROOM]: (data: JoinRoom) => void;
-    [ClientEvents.CLOSE_ROOM]: () => void;
+    [ClientEvents.CLOSE_ROOM]: (ack: Ack) => void;
 
     [ClientEvents.SET_VOTE]: (data: Omit<SetVote, 'user'>) => void;
     [ClientEvents.SHOW_VOTES]: () => void;

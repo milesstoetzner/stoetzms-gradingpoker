@@ -7,7 +7,7 @@ services:
 
   backend:
     build:
-      context: backend
+      dockerfile: backend/Dockerfile
+      context: .
     ports:
       - '3001:80'
-

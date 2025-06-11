@@ -1,5 +1,5 @@
 import {Server} from "socket.io";
-import {ClientEvents, InitState, JoinRoom, ServerEvents, SetVote, User} from "../../spec/types";
+import {Ack, ClientEvents, InitState, JoinRoom, ServerEvents, SetVote, User} from "../../spec/types";
 import {generateAvatar, haeParameter, haeVoid} from "./utils";
 import {generateSeed} from "./seed";
 
@@ -7,9 +7,12 @@ import {generateSeed} from "./seed";
 
 // TODO: dont log private or huge data
 
+// TODO: gracefully stop
+
 const store: { [room: string]: InitState } = {}
 
 const io = new Server({
+    path: "/socket.io",
     cors: {
         // TODO: restrict this
         origin: "*",
@@ -116,8 +119,9 @@ io.on("connection", (socket) => {
         socket.to(socket.data.room).emit(ServerEvents.HIDE_VOTES);
     }))
 
-    socket.on(ClientEvents.CLOSE_ROOM, haeVoid(() => {
+    socket.on(ClientEvents.CLOSE_ROOM, haeParameter((ack: Ack) => {
         console.log(socket.data.id, socket.data.room, 'on', ClientEvents.CLOSE_ROOM);
+        ack()
         closeRoom()
     }))
 

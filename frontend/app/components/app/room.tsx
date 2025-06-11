@@ -29,9 +29,9 @@ export function RoomCard(props: {
 }) {
     const [searchParams, setSearchParams] = useSearchParams();
 
-    // TODO: correct URL
-    const [socket, _] = React.useState<Socket<ServerToClientEvents, ClientToServerEvents>>(() => io('http://localhost:3000', {
-        timeout: 2000
+    const [socket, _] = React.useState<Socket<ServerToClientEvents, ClientToServerEvents>>(() => io(window.location.origin, {
+        timeout: 2000,
+        path: "/socket.io",
     }))
 
     const [connected, setConnected] = React.useState(false);
@@ -149,8 +149,10 @@ export function RoomCard(props: {
 
     function onLocalCloseRoom() {
         console.log('socket', socket.id, 'emit', ClientEvents.CLOSE_ROOM)
-        socket.emit(ClientEvents.CLOSE_ROOM)
-        onLocalBack()
+        socket.emit(ClientEvents.CLOSE_ROOM, () => {
+            console.log('socket', socket.id, 'ack', ClientEvents.CLOSE_ROOM)
+            onLocalBack()
+        })
     }
 
     React.useEffect(() => {
