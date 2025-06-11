@@ -61,6 +61,12 @@ export function RoomCard(props: {
             setHidden(data.hidden);
         }
 
+        function onSocketCloseRoom() {
+            console.log('socket', id, 'on', ServerEvents.CLOSE_ROOM)
+            toast('Room closed ...')
+            onLocalBack()
+        }
+
         function onSocketShowVotes() {
             console.log('socket', id, 'on', ServerEvents.SHOW_VOTES)
             setHidden(false)
@@ -99,6 +105,7 @@ export function RoomCard(props: {
         // TODO: on errors, https://socket.io/docs/v4/emit-cheatsheet/
 
         socket.on(ServerEvents.INIT_STATE, onSocketInitState);
+        socket.on(ServerEvents.CLOSE_ROOM, onSocketCloseRoom);
         socket.on(ServerEvents.ADD_USER, onSocketAddUser);
         socket.on(ServerEvents.REMOVE_USER, onSocketRemoveUser);
         socket.on(ServerEvents.SET_VOTE, onSocketSetVote);
@@ -110,6 +117,7 @@ export function RoomCard(props: {
             socket.off('disconnect', onSocketDisconnect)
 
             socket.off(ServerEvents.INIT_STATE, onSocketInitState);
+            socket.off(ServerEvents.CLOSE_ROOM, onSocketCloseRoom);
             socket.off(ServerEvents.ADD_USER, onSocketAddUser);
             socket.off(ServerEvents.REMOVE_USER, onSocketRemoveUser);
             socket.off(ServerEvents.SET_VOTE, onSocketSetVote);
@@ -150,6 +158,12 @@ export function RoomCard(props: {
     function onLocalBack() {
         socket.disconnect()
         props.setProcess('JOIN')
+    }
+
+    function onLocalCloseRoom() {
+        console.log('socket', socket.id, 'emit', ClientEvents.CLOSE_ROOM)
+        socket.emit(ClientEvents.CLOSE_ROOM)
+        onLocalBack()
     }
 
     React.useEffect(() => {
@@ -206,17 +220,22 @@ export function RoomCard(props: {
                         <CardFooter className="flex-col gap-2">
                             <Button type="submit" className="w-full" onClick={onLocalShowVotes}
                                     disabled={!Object.values(votes).length}>
-                                <Eye/> Show
+                                <Eye/> Show Votes
                             </Button>
 
                             <Button type="submit" className="w-full" variant="secondary"
                                     onClick={onLocalHideVotes}>
-                                <EyeOff/> Hide
+                                <EyeOff/> Hide Votes
+                            </Button>
+
+                            <Button type="submit" className="w-full" variant="secondary"
+                                    onClick={onLocalCloseRoom}>
+                                <Trash2/> Close Room
                             </Button>
 
                             <Button type="submit" className="w-full" onClick={onLocalBack}
                                     variant="secondary">
-                                <CircleArrowLeft/> Back
+                                <CircleArrowLeft/> Leave Room
                             </Button>
                         </CardFooter>
                     </div>
@@ -237,6 +256,10 @@ export function RoomCard(props: {
                 </div>
 
             </Card>
+
+            <br/>
+            <br/>
+            <br/>
 
             <pre>connected: {JSON.stringify(socket.connected, null, 4)}</pre>
             <pre>hidden: {JSON.stringify(hidden, null, 4)}</pre>

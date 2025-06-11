@@ -1,7 +1,9 @@
 import {CardContent, CardHeader, CardTitle} from "~/components/ui/card";
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from "~/components/ui/table";
 import React from "react";
+// @ts-ignore
 import average from 'average'
+// @ts-ignore
 import median from 'median'
 import {Votes} from "~/socket/types";
 

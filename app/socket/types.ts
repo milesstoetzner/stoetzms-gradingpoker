@@ -4,10 +4,13 @@ export enum ClientEvents {
     SET_VOTE = 'set-vote',
     SHOW_VOTES = 'show-votes',
     HIDE_VOTES = 'hide-votes',
+
+    CLOSE_ROOM = 'close-room',
 }
 
 export enum ServerEvents {
     INIT_STATE = 'init-state',
+    CLOSE_ROOM = 'close-room',
 
     ADD_USER = 'add-user',
     REMOVE_USER = 'remove-user',
@@ -15,6 +18,7 @@ export enum ServerEvents {
     SET_VOTE = 'set-vote',
     SHOW_VOTES = 'show-votes',
     HIDE_VOTES = 'hide-votes',
+
 }
 
 export type JoinRoom = {
@@ -47,10 +51,9 @@ export type User = {
     avatar: string
 }
 
-// TODO: some command to clear server state?
-
 export interface ClientToServerEvents {
     [ClientEvents.JOIN_ROOM]: (data: JoinRoom) => void;
+    [ClientEvents.CLOSE_ROOM]: () => void;
 
     [ClientEvents.SET_VOTE]: (data: Omit<SetVote, 'user'>) => void;
     [ClientEvents.SHOW_VOTES]: () => void;
@@ -59,6 +62,7 @@ export interface ClientToServerEvents {
 
 export interface ServerToClientEvents {
     [ServerEvents.INIT_STATE]: (data: InitState) => void;
+    [ServerEvents.CLOSE_ROOM]: () => void;
 
     [ServerEvents.ADD_USER]: (data: AddUser) => void;
     [ServerEvents.REMOVE_USER]: (data: RemoveUser) => void;

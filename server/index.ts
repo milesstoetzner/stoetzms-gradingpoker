@@ -3,9 +3,13 @@ import {ClientEvents, InitState, JoinRoom, ServerEvents, SetVote, User} from "~/
 import {DummyUsers, DummyVotes} from "./dummy";
 import {generateAvatar} from "./utils";
 
-// TODO: clean up empty rooms
+// TODO: clean up stale rooms, e.g., no activity since 1 week
 
 // TODO: return errors to user
+
+// TODO: dont log private or huge data
+
+// TODO: error handling in general
 
 const store: {
     [room: string]: InitState
@@ -43,7 +47,7 @@ io.on("connection", (socket) => {
 
         // Check if another user with same name exists
         const found = room.users.find(it => it.name === socket.data.user)
-        // TODO: if (found) throw new Error(`User ${socket.data.user} already exists`)
+        if (found) throw new Error(`User ${socket.data.user} already exists`)
 
         // Add user to room
         const user: User = {
@@ -109,22 +113,57 @@ io.on("connection", (socket) => {
         socket.to(socket.data.room).emit(ServerEvents.HIDE_VOTES);
     })
 
+    socket.on(ClientEvents.CLOSE_ROOM, () => {
+        console.log(socket.data.id, socket.data.room, 'on', ClientEvents.CLOSE_ROOM);
+        closeRoom()
+    })
 
     socket.on('disconnect', () => {
         console.log(socket.data.id, socket.data.room, 'on', 'disconnected');
 
-        // Update state
         if (socket.data.room) {
+
+            // Update state
             const room = store[socket.data.room]
-            if (!room) throw new Error("Room not found");
+            if (!room) return
             room.users = room.users.filter(it => it.name !== socket.data.user)
+
+            // Remove socket from room
+            socket.leave(socket.data.room)
+
+            if (!room.users.length) {
+                // Close room
+                closeRoom()
+            } else {
+                // Emit remove user to room
+                const emit = {user: socket.data.user}
+                console.log('server', socket.data.room, 'emit', ServerEvents.REMOVE_USER, emit);
+                socket.to(socket.data.room).emit(ServerEvents.REMOVE_USER, emit)
+            }
         }
 
-        // Emit remove user to room
-        const emit = {user: socket.data.user}
-        console.log('server', socket.data.room, 'emit', ServerEvents.REMOVE_USER, emit);
-        socket.to(socket.data.room).emit(ServerEvents.REMOVE_USER, emit)
     })
+
+    function closeRoom() {
+        // Update state
+        delete store[socket.data.room]
+
+        // Emit close room to room
+        console.log('server', socket.data.room, 'emit', ServerEvents.CLOSE_ROOM);
+        socket.to(socket.data.room).emit(ServerEvents.CLOSE_ROOM);
+
+        // Disconnect all sockets by force
+        const pool = io.sockets.adapter.rooms.get(socket.data.room) ?? new Set<string>()
+        pool.forEach((id) => {
+            try {
+                const other = io.sockets.sockets.get(id);
+                if (other) other.disconnect(true)
+            } catch (e) {
+                console.log(e)
+            }
+        })
+
+    }
 
 });
 
