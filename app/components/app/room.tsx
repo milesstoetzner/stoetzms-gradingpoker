@@ -1,22 +1,8 @@
 import {Button} from "~/components/ui/button"
-import {
-    Card,
-    CardContent,
-    CardFooter,
-    CardHeader,
-    CardTitle,
-} from "~/components/ui/card"
+import {Card, CardContent, CardFooter, CardHeader, CardTitle,} from "~/components/ui/card"
 import React from "react";
 import {Avatar, AvatarImage} from "~/components/ui/avatar"
-import * as avatar from "@fractalsoftware/random-avatar-generator";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "~/components/ui/table"
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow,} from "~/components/ui/table"
 import {CircleArrowLeft, Eye, EyeOff, Trash2} from "lucide-react";
 import {toast} from "sonner";
 import {ResultContent} from "~/components/app/result";
@@ -24,19 +10,25 @@ import Vote from "~/components/app/vote";
 import Share from "~/components/app/share";
 import Hidden from "~/components/app/hidden";
 import {io, Socket} from 'socket.io-client';
+import {
+    AddUser,
+    ClientEvents,
+    ClientToServerEvents,
+    InitState, RemoveUser,
+    ServerEvents,
+    ServerToClientEvents, SetVote,
+    User, Votes
+} from "~/socket/types";
 
-// TODO: publish and listen on "join" (when joining, new client needs current state)
+// TODO: remove debug state in JSX
 
-// TODO: publish and listen on "disconnect"
+// TODO: where to handle this socket connection?!
+// TODO: correct URL
+const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io('http://localhost:3000', {
+    autoConnect: true
+});
 
-// TODO: remove internal state
-
-export type User = {
-    name: string
-    vote?: string
-    avatar: string
-}
-
+// TODO: error handler, https://socket.io/docs/v4/listening-to-events/#error-handling
 
 export function RoomCard(props: {
     room: string,
@@ -44,124 +36,115 @@ export function RoomCard(props: {
     setProcess: (process: string) => void;
 }) {
 
-    // TODO: where to handle this socket connection?!
-
-    // TODO: join room
-    const socket = io(window.location.href, {
-        autoConnect: false
-    });
-
     const [connected, setConnected] = React.useState(socket.connected);
     React.useEffect(() => {
-        function onSocketConnect(socket: Socket) {
-            socket.join(props.room);
 
+        let id: string;
+        socket.connect()
+
+        function onSocketConnect() {
+            id = socket.id!
+            console.log('socket', id, 'on', 'connect')
             setConnected(true);
+            socket.emit(ClientEvents.JOIN_ROOM, {user: props.user, room: props.room});
         }
 
         function onSocketDisconnect() {
+            console.log('socket', id, 'on', 'disconnect')
             setConnected(false);
         }
 
-        function onSocketSetUsers() {
-            // TODO. set users
-        }
-
-        function onSocketAddUser() {
-            // TODO: add user
-        }
-
-        function onSocketRemoveUser() {
-            // TODO: remove user
-        }
-
-        function onSocketSetVote() {
-            // TODO: set vote
+        function onSocketInitState(data: InitState) {
+            console.log('socket', id, 'on', ServerEvents.INIT_STATE, data)
+            setUsers(data.users);
+            setVotes(data.votes);
+            setHidden(data.hidden);
         }
 
         function onSocketShowVotes() {
+            console.log('socket', id, 'on', ServerEvents.SHOW_VOTES)
             setHidden(false)
         }
 
         function onSocketHideVotes() {
+            console.log('socket', id, 'on', ServerEvents.HIDE_VOTES)
             setHidden(true)
         }
 
-        function onSocketClearVotes() {
-            // TODO: clear votes
+        function onSocketAddUser(data: AddUser) {
+            console.log('socket', id, 'on', ServerEvents.ADD_USER, data)
+            setUsers(prev => [...prev, data])
         }
 
-        socket.on('connection', onSocketConnect);
+        function onSocketRemoveUser(data: RemoveUser) {
+            console.log('socket', id, 'on', ServerEvents.REMOVE_USER, data)
+            setUsers(prev => prev.filter(it => it.name !== data.user))
+            setVotes(prev => {
+                delete prev[data.user]
+                return {...prev}
+            })
+        }
+
+        function onSocketSetVote(data: SetVote) {
+            console.log('socket', id, 'on', ServerEvents.SET_VOTE, data)
+            setVotes(prev => {
+                prev[data.user] = data.vote
+                return {...prev}
+            })
+        }
+
+        socket.on('connect', onSocketConnect);
         socket.on('disconnect', onSocketDisconnect);
 
-        // TODO: on errors (different kinds)
+        // TODO: on errors, https://socket.io/docs/v4/emit-cheatsheet/
 
-        socket.on('set-users', onSocketSetUsers);
-        socket.on('add-user', onSocketAddUser);
-        socket.on('remove-user', onSocketRemoveUser);
-        socket.on('set-vote', onSocketSetVote);
-        socket.on('show-votes', onSocketShowVotes);
-        socket.on('hide-votes', onSocketHideVotes);
-        socket.on('clear-votes', onSocketClearVotes);
+        socket.on(ServerEvents.INIT_STATE, onSocketInitState);
+        socket.on(ServerEvents.ADD_USER, onSocketAddUser);
+        socket.on(ServerEvents.REMOVE_USER, onSocketRemoveUser);
+        socket.on(ServerEvents.SET_VOTE, onSocketSetVote);
+        socket.on(ServerEvents.SHOW_VOTES, onSocketShowVotes);
+        socket.on(ServerEvents.HIDE_VOTES, onSocketHideVotes);
 
         return () => {
+            socket.off('connect', onSocketConnect)
+            socket.off('disconnect', onSocketDisconnect)
+
+            socket.off(ServerEvents.INIT_STATE, onSocketInitState);
+            socket.off(ServerEvents.ADD_USER, onSocketAddUser);
+            socket.off(ServerEvents.REMOVE_USER, onSocketRemoveUser);
+            socket.off(ServerEvents.SET_VOTE, onSocketSetVote);
+            socket.off(ServerEvents.SHOW_VOTES, onSocketShowVotes);
+            socket.off(ServerEvents.HIDE_VOTES, onSocketHideVotes);
+
             socket.disconnect()
         };
     }, []);
 
 
     const [hidden, setHidden] = React.useState<boolean>(true);
+    const [users, setUsers] = React.useState<User[]>([]);
+    const [votes, setVotes] = React.useState<Votes>({});
 
-    const [users, setUsers] = React.useState<User[]>([{
-        name: 'admiring-ganguly',
-        avatar: avatar.getRandomAvatar(2),
-    },
-        {
-            name: 'magical-nightingale',
-            vote: '1.0',
-            avatar: avatar.getRandomAvatar(2)
-        },
-        {
-            name: 'zealous-goldberg',
-            avatar: avatar.getRandomAvatar(2),
-        },
-        {
-            name: 'amazing-brahmagupta',
-            avatar: avatar.getRandomAvatar(2),
-            vote: '2.0',
-        },
-        {
-            name: 'vibrant-knuth',
-            avatar: avatar.getRandomAvatar(2),
-            vote: 'baum'
-        }]);
-
-
-    function onVoteChange(value: string) {
+    function onVoteChange(vote: string) {
         onLocalHideVotes()
-        setVote(props.user, value)
-    }
 
-    function setVote(user: string, vote: string) {
-        const found = users.find(it => it.name === user)
-        if (!found) return toast.error(`User ${user} not found!`)
-        found.vote = vote
-        setUsers(Array.from(users))
+        const data = {vote}
+        console.log('socket', socket.id, 'emit', ClientEvents.SET_VOTE, data)
+        socket.emit(ClientEvents.SET_VOTE, data)
+
+        setVotes({...votes, [props.user]: vote})
     }
 
     function onLocalShowVotes() {
         setHidden(false)
-        socket.emit('show-votes')
+        console.log('socket', socket.id, 'emit', ClientEvents.SHOW_VOTES)
+        socket.emit(ClientEvents.SHOW_VOTES)
     }
 
     function onLocalHideVotes() {
         setHidden(true)
-        socket.emit('hide-votes')
-    }
-
-    function onLocalClearVotes() {
-        // TODO: clear votes
-        socket.emit('clear-votes')
+        console.log('socket', socket.id, 'emit', ClientEvents.HIDE_VOTES)
+        socket.emit(ClientEvents.HIDE_VOTES)
     }
 
     function onLocalBack() {
@@ -170,12 +153,8 @@ export function RoomCard(props: {
     }
 
     React.useEffect(() => {
-        const onUnload = () => {
-            socket.disconnect()
-        }
-
+        const onUnload = () => socket.disconnect()
         window.addEventListener("beforeunload", onUnload)
-
         return () => window.removeEventListener("beforeunload", onUnload)
     }, [])
 
@@ -187,10 +166,15 @@ export function RoomCard(props: {
                         <CardHeader className="flex flex-row justify-between items-center"
                                     style={{marginTop: '-12px', marginBottom: '-10px'}}>
                             <CardTitle>{props.room}</CardTitle>
+
+
                             <Share/>
                         </CardHeader>
 
                         <CardContent className="min-h-[450px]">
+                            Connected: {connected ? 'Yes' : 'No'}
+
+
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -210,8 +194,8 @@ export function RoomCard(props: {
                                             </TableCell>
                                             <TableCell>{user.name}</TableCell>
                                             <TableCell>{user.name === props.user ?
-                                                <Vote onChange={onVoteChange}/> : user.vote ? hidden ?
-                                                    <Hidden/> : user.vote : 'Still voting ...'}</TableCell>
+                                                <Vote onChange={onVoteChange}/> : votes[user.name] ? hidden ?
+                                                    <Hidden/> : votes[user.name] : 'Still voting ...'}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -221,17 +205,13 @@ export function RoomCard(props: {
 
                         <CardFooter className="flex-col gap-2">
                             <Button type="submit" className="w-full" onClick={onLocalShowVotes}
-                                    disabled={!users.find(it => it.vote)}>
+                                    disabled={!Object.values(votes).length}>
                                 <Eye/> Show
                             </Button>
 
                             <Button type="submit" className="w-full" variant="secondary"
                                     onClick={onLocalHideVotes}>
                                 <EyeOff/> Hide
-                            </Button>
-
-                            <Button type="submit" className="w-full" variant="secondary" onClick={onLocalClearVotes}>
-                                <Trash2/> Clear
                             </Button>
 
                             <Button type="submit" className="w-full" onClick={onLocalBack}
@@ -249,7 +229,7 @@ export function RoomCard(props: {
                                 </p>
                             </div> :
 
-                            <ResultContent users={users}/>
+                            <ResultContent votes={votes}/>
 
                         }
 
@@ -258,7 +238,10 @@ export function RoomCard(props: {
 
             </Card>
 
+            <pre>connected: {JSON.stringify(socket.connected, null, 4)}</pre>
+            <pre>hidden: {JSON.stringify(hidden, null, 4)}</pre>
             <pre>{JSON.stringify(users, null, 4)}</pre>
+            <pre>{JSON.stringify(votes, null, 4)}</pre>
 
         </div>
     )

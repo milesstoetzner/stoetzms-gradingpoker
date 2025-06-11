@@ -1,9 +1,9 @@
 import {CardContent, CardHeader, CardTitle} from "~/components/ui/card";
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from "~/components/ui/table";
 import React from "react";
-import {User} from "~/components/app/room";
 import average from 'average'
 import median from 'median'
+import {Votes} from "~/socket/types";
 
 type Distribution = {
     vote: string
@@ -11,11 +11,12 @@ type Distribution = {
 }
 
 export function ResultContent(props: {
-    users: User[]
+    votes: Votes
 }) {
 
-    const strings = props.users.filter(it => it.vote).map(it => String(it.vote))
-    const numbers = props.users.map(it => Number(it.vote)).filter(it => !Number.isNaN(it))
+    const values = Object.values(props.votes)
+    const strings = values.filter(it => it !== null && it !== undefined && it !== '').map(it => String(it))
+    const numbers= strings.map(it => Number(it)).filter(it => !Number.isNaN(it))
 
     let distribution: Distribution[] = []
     strings.forEach(vote => {
@@ -58,7 +59,7 @@ export function ResultContent(props: {
                             Average
                         </TableCell>
                         <TableCell>
-                            {average(numbers).toFixed(2)}
+                            {numbers.length === 0 ? Number.NaN : average(numbers).toFixed(2)}
                         </TableCell>
                     </TableRow>
 
