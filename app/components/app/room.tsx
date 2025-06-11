@@ -19,6 +19,7 @@ import {
     ServerToClientEvents, SetVote,
     User, Votes
 } from "~/socket/types";
+import Health from "~/components/app/health";
 
 // TODO: remove debug state in JSX
 
@@ -174,20 +175,21 @@ export function RoomCard(props: {
 
     return (
         <div className="flex flex-col gap-6">
-            <Card className="overflow-hidden p-0">
+
+            <Health connected={connected}/>
+
+            <Card className="overflow-hidden p-0 shadow-none">
                 <div className="grid p-0 md:grid-cols-2">
                     <div className="flex flex-col gap-6">
                         <CardHeader className="flex flex-row justify-between items-center"
                                     style={{marginTop: '-12px', marginBottom: '-10px'}}>
-                            <CardTitle>{props.room}</CardTitle>
 
+                            <CardTitle>{props.room}</CardTitle>
 
                             <Share/>
                         </CardHeader>
 
                         <CardContent className="min-h-[450px]">
-                            Connected: {connected ? 'Yes' : 'No'}
-
 
                             <Table>
                                 <TableHeader>
@@ -261,10 +263,15 @@ export function RoomCard(props: {
             <br/>
             <br/>
 
-            <pre>connected: {JSON.stringify(socket.connected, null, 4)}</pre>
-            <pre>hidden: {JSON.stringify(hidden, null, 4)}</pre>
-            <pre>{JSON.stringify(users, null, 4)}</pre>
-            <pre>{JSON.stringify(votes, null, 4)}</pre>
+            {false && <React.Fragment>
+
+                <pre>connected: {JSON.stringify(socket.connected, null, 4)}</pre>
+                <pre>hidden: {JSON.stringify(hidden, null, 4)}</pre>
+                <pre>{JSON.stringify(users, null, 4)}</pre>
+                <pre>{JSON.stringify(votes, null, 4)}</pre>
+
+
+            </React.Fragment>}
 
         </div>
     )

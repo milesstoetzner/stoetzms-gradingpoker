@@ -22,7 +22,7 @@ export function JoinCard(props: {
 }) {
 
     return (
-        <Card className="w-full max-w-sm">
+        <Card className="w-full max-w-sm shadow-none">
             <CardHeader>
                 <CardTitle>planningpoker.stoetz.ms</CardTitle>
             </CardHeader>
