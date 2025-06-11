@@ -17,19 +17,11 @@ import {
     InitState, RemoveUser,
     ServerEvents,
     ServerToClientEvents, SetVote,
-    User, Votes
+    User, Votes, Notification
 } from "~/socket/types";
 import Health from "~/components/app/health";
 
-// TODO: remove debug state in JSX
-
-// TODO: where to handle this socket connection?!
-// TODO: correct URL
-const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io('http://localhost:3000', {
-    autoConnect: true
-});
-
-// TODO: error handler, https://socket.io/docs/v4/listening-to-events/#error-handling
+// TODO: remove debug state in JSX (as hidden parameter?)
 
 export function RoomCard(props: {
     room: string,
@@ -37,97 +29,91 @@ export function RoomCard(props: {
     setProcess: (process: string) => void;
 }) {
 
-    const [connected, setConnected] = React.useState(socket.connected);
-    React.useEffect(() => {
+    // TODO: correct URL
+    const [socket, _] = React.useState<Socket<ServerToClientEvents, ClientToServerEvents>>(() => io('http://localhost:3000', {
+        timeout: 2000
+    }))
 
+    const [connected, setConnected] = React.useState(false);
+    React.useEffect(() => {
         let id: string;
         socket.connect()
 
-        function onSocketConnect() {
+        socket.on('connect', () => {
             id = socket.id!
             console.log('socket', id, 'on', 'connect')
             setConnected(true);
             socket.emit(ClientEvents.JOIN_ROOM, {user: props.user, room: props.room});
-        }
+            toast('Connected ...')
+        });
 
-        function onSocketDisconnect() {
-            console.log('socket', id, 'on', 'disconnect')
+        socket.on('disconnect', (reason) => {
+            console.log('socket', id, 'on', 'disconnect', reason)
             setConnected(false);
-        }
+            toast('Disconnected ...')
+        });
 
-        function onSocketInitState(data: InitState) {
+        socket.on('connect_error', (error) => {
+            console.log('socket', id, 'on', 'connect_error', error)
+            toast('Connection error ...')
+        });
+
+        socket.on(ServerEvents.INIT_STATE, (data: InitState) => {
             console.log('socket', id, 'on', ServerEvents.INIT_STATE, data)
             setUsers(data.users);
             setVotes(data.votes);
             setHidden(data.hidden);
-        }
+        });
 
-        function onSocketCloseRoom() {
+        socket.on(ServerEvents.CLOSE_ROOM, () => {
             console.log('socket', id, 'on', ServerEvents.CLOSE_ROOM)
             toast('Room closed ...')
             onLocalBack()
-        }
+        });
 
-        function onSocketShowVotes() {
-            console.log('socket', id, 'on', ServerEvents.SHOW_VOTES)
-            setHidden(false)
-        }
-
-        function onSocketHideVotes() {
-            console.log('socket', id, 'on', ServerEvents.HIDE_VOTES)
-            setHidden(true)
-        }
-
-        function onSocketAddUser(data: AddUser) {
+        socket.on(ServerEvents.ADD_USER, (data: AddUser) => {
             console.log('socket', id, 'on', ServerEvents.ADD_USER, data)
             setUsers(prev => [...prev, data])
-        }
+        })
 
-        function onSocketRemoveUser(data: RemoveUser) {
+        socket.on(ServerEvents.REMOVE_USER, (data: RemoveUser) => {
             console.log('socket', id, 'on', ServerEvents.REMOVE_USER, data)
             setUsers(prev => prev.filter(it => it.name !== data.user))
             setVotes(prev => {
                 delete prev[data.user]
                 return {...prev}
             })
-        }
+        })
 
-        function onSocketSetVote(data: SetVote) {
+        socket.on(ServerEvents.SET_VOTE, (data: SetVote) => {
             console.log('socket', id, 'on', ServerEvents.SET_VOTE, data)
             setVotes(prev => {
                 prev[data.user] = data.vote
                 return {...prev}
             })
-        }
+        });
 
-        socket.on('connect', onSocketConnect);
-        socket.on('disconnect', onSocketDisconnect);
+        socket.on(ServerEvents.SHOW_VOTES, () => {
+            console.log('socket', id, 'on', ServerEvents.SHOW_VOTES)
+            setHidden(false)
+        });
 
-        // TODO: on errors, https://socket.io/docs/v4/emit-cheatsheet/
 
-        socket.on(ServerEvents.INIT_STATE, onSocketInitState);
-        socket.on(ServerEvents.CLOSE_ROOM, onSocketCloseRoom);
-        socket.on(ServerEvents.ADD_USER, onSocketAddUser);
-        socket.on(ServerEvents.REMOVE_USER, onSocketRemoveUser);
-        socket.on(ServerEvents.SET_VOTE, onSocketSetVote);
-        socket.on(ServerEvents.SHOW_VOTES, onSocketShowVotes);
-        socket.on(ServerEvents.HIDE_VOTES, onSocketHideVotes);
+        socket.on(ServerEvents.HIDE_VOTES, () => {
+            console.log('socket', id, 'on', ServerEvents.HIDE_VOTES)
+            setHidden(true)
+        });
+
+        socket.on(ServerEvents.SHOW_NOTIFICATION, (data: Notification) => {
+            console.log('socket', id, 'on', ServerEvents.SHOW_NOTIFICATION)
+            toast(data.message)
+        })
 
         return () => {
-            socket.off('connect', onSocketConnect)
-            socket.off('disconnect', onSocketDisconnect)
-
-            socket.off(ServerEvents.INIT_STATE, onSocketInitState);
-            socket.off(ServerEvents.CLOSE_ROOM, onSocketCloseRoom);
-            socket.off(ServerEvents.ADD_USER, onSocketAddUser);
-            socket.off(ServerEvents.REMOVE_USER, onSocketRemoveUser);
-            socket.off(ServerEvents.SET_VOTE, onSocketSetVote);
-            socket.off(ServerEvents.SHOW_VOTES, onSocketShowVotes);
-            socket.off(ServerEvents.HIDE_VOTES, onSocketHideVotes);
-
+            socket.removeAllListeners()
             socket.disconnect()
         };
-    }, []);
+    }, [socket]);
 
 
     const [hidden, setHidden] = React.useState<boolean>(true);

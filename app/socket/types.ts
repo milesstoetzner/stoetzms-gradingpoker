@@ -19,6 +19,7 @@ export enum ServerEvents {
     SHOW_VOTES = 'show-votes',
     HIDE_VOTES = 'hide-votes',
 
+    SHOW_NOTIFICATION = 'show-notification',
 }
 
 export type JoinRoom = {
@@ -39,7 +40,6 @@ export type SetVote = {
     vote: string
 }
 
-
 export type AddUser = User
 
 export type RemoveUser = {
@@ -49,6 +49,10 @@ export type RemoveUser = {
 export type User = {
     name: string
     avatar: string
+}
+
+export type Notification = {
+    message: string
 }
 
 export interface ClientToServerEvents {
@@ -70,4 +74,6 @@ export interface ServerToClientEvents {
     [ServerEvents.SET_VOTE]: (data: SetVote) => void;
     [ServerEvents.SHOW_VOTES]: () => void;
     [ServerEvents.HIDE_VOTES]: () => void;
+
+    [ServerEvents.SHOW_NOTIFICATION]: (data: Notification) => void;
 }

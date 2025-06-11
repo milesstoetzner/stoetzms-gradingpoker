@@ -1,33 +1,33 @@
 import {Server} from "socket.io";
 import {ClientEvents, InitState, JoinRoom, ServerEvents, SetVote, User} from "~/socket/types";
 import {DummyUsers, DummyVotes} from "./dummy";
-import {generateAvatar} from "./utils";
+import {generateAvatar, haeParameter, haeVoid} from "./utils";
 
 // TODO: clean up stale rooms, e.g., no activity since 1 week
 
-// TODO: return errors to user
-
 // TODO: dont log private or huge data
 
-// TODO: error handling in general
-
-const store: {
-    [room: string]: InitState
-} = {}
+const store: { [room: string]: InitState } = {}
 
 const io = new Server({
     cors: {
+        // TODO: restrict this
         origin: "*",
-    }
+    },
+    pingInterval: 2000,
+    pingTimeout: 2000,
 });
 
+io.on("error", (err: Error) => {
+    console.log('server', 'on', 'error', err)
+})
+
 io.on("connection", (socket) => {
-    // ...
     socket.data.id = socket.id
 
-    console.log(socket.data.id, 'connected');
+    console.log(socket.data.id, 'on', 'connected');
 
-    socket.on(ClientEvents.JOIN_ROOM, (data: JoinRoom) => {
+    socket.on(ClientEvents.JOIN_ROOM, haeParameter((data: JoinRoom) => {
         console.log(socket.id, ClientEvents.JOIN_ROOM, 'on', data);
 
         // Init metadata
@@ -36,7 +36,7 @@ io.on("connection", (socket) => {
 
         // Init room
         if (!store[data.room]) {
-            // TODO: drop dummies
+            // TODO: drop dummies (per query param)
             store[data.room] = {
                 hidden: true,
                 users: DummyUsers(),
@@ -47,7 +47,7 @@ io.on("connection", (socket) => {
 
         // Check if another user with same name exists
         const found = room.users.find(it => it.name === socket.data.user)
-        if (found) throw new Error(`User ${socket.data.user} already exists`)
+        if (found) return emitError(`User ${socket.data.user} already exists ...`)
 
         // Add user to room
         const user: User = {
@@ -70,56 +70,55 @@ io.on("connection", (socket) => {
         // Emit hide votes to room
         console.log('server', socket.data.room, 'emit', ServerEvents.HIDE_VOTES);
         socket.to(socket.data.room).emit(ServerEvents.HIDE_VOTES);
-    })
+    }))
 
-    socket.on(ClientEvents.SET_VOTE, (data: Omit<SetVote, 'user'>) => {
+    socket.on(ClientEvents.SET_VOTE, haeParameter((data: Omit<SetVote, 'user'>) => {
         console.log(socket.data.id, socket.data.room, 'on', ClientEvents.SET_VOTE);
 
         // Update state
         const room = store[socket.data.room]
-        if (!room) throw new Error("Room not found");
+        if (!room) return emitError(`Room ${socket.data.room} not found ...`);
         room.votes[socket.data.user] = data.vote;
 
         // Emit set vote to room
         const emit = {user: socket.data.user, vote: data.vote}
         console.log('server', socket.data.room, 'emit', ServerEvents.SET_VOTE, emit);
         socket.to(socket.data.room).emit(ServerEvents.SET_VOTE, emit);
-    })
+    }))
 
-    socket.on(ClientEvents.SHOW_VOTES, () => {
+    socket.on(ClientEvents.SHOW_VOTES, haeVoid(() => {
         console.log(socket.data.id, socket.data.room, 'on', ClientEvents.SHOW_VOTES);
 
         // Update state
         const room = store[socket.data.room]
-        if (!room) throw new Error("Room not found");
+        if (!room) return emitError(`Room ${socket.data.room} not found ...`);
         room.hidden = false;
 
         // Emit hide votes to room
         console.log('server', socket.data.room, 'emit', ServerEvents.HIDE_VOTES);
         socket.to(socket.data.room).emit(ServerEvents.SHOW_VOTES);
-    })
+    }))
 
-
-    socket.on(ClientEvents.HIDE_VOTES, () => {
+    socket.on(ClientEvents.HIDE_VOTES, haeVoid(() => {
         console.log(socket.data.id, socket.data.room, 'on', ClientEvents.HIDE_VOTES);
 
         // Update state
         const room = store[socket.data.room]
-        if (!room) throw new Error("Room not found");
+        if (!room) return emitError(`Room ${socket.data.room} not found ...`);
         room.hidden = true;
 
         // Emit hide votes to room
         console.log('server', socket.data.room, 'emit', ServerEvents.HIDE_VOTES);
         socket.to(socket.data.room).emit(ServerEvents.HIDE_VOTES);
-    })
+    }))
 
-    socket.on(ClientEvents.CLOSE_ROOM, () => {
+    socket.on(ClientEvents.CLOSE_ROOM, haeVoid(() => {
         console.log(socket.data.id, socket.data.room, 'on', ClientEvents.CLOSE_ROOM);
         closeRoom()
-    })
+    }))
 
-    socket.on('disconnect', () => {
-        console.log(socket.data.id, socket.data.room, 'on', 'disconnected');
+    socket.on('disconnect', haeParameter((reason) => {
+        console.log(socket.data.id, socket.data.room, 'on', 'disconnected', reason);
 
         if (socket.data.room) {
 
@@ -142,7 +141,17 @@ io.on("connection", (socket) => {
             }
         }
 
-    })
+    }))
+
+    socket.on('error', haeParameter((error: Error) => {
+        console.log(socket.data.id, socket.data.room, 'on', 'error', error);
+    }))
+
+    function emitError(message: string) {
+        const emit = {message}
+        console.log('server', socket.data.id, 'emit', ServerEvents.SHOW_NOTIFICATION, emit);
+        socket.emit(ServerEvents.SHOW_NOTIFICATION, emit)
+    }
 
     function closeRoom() {
         // Update state
