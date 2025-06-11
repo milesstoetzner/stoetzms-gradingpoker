@@ -22,8 +22,6 @@ import {
 import Health from "~/components/app/health";
 import {useSearchParams} from "@remix-run/react";
 
-// TODO: remove debug state in JSX (as hidden parameter?)
-
 export function RoomCard(props: {
     room: string,
     user: string,
