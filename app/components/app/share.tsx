@@ -10,7 +10,7 @@ export default function Share() {
 
     function share() {
         copy(window.location.href)
-        toast("Copied link to clipboard!")
+        toast("Linked copied ...")
     }
 
     return (<TooltipProvider>
