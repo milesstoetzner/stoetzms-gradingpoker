@@ -15,6 +15,9 @@ export const meta: MetaFunction = () => {
     ];
 };
 
+const KEY_ROOM = 'room'
+const KEY_USER = 'user'
+
 export default function Index() {
     const [searchParams, setSearchParams] = useSearchParams();
 
@@ -23,20 +26,26 @@ export default function Index() {
     const [room, setRoom] = React.useState<string>(getRoom())
 
     function getRoom() {
-        const found = searchParams.get('room')
+        const found = searchParams.get(KEY_ROOM)
         if (found && found !== '') return found
         return randomName()
     }
 
     React.useEffect(() => {
-        if (!searchParams.get('room')) {
-            setSearchParam('room', room)
+        if (!searchParams.get(KEY_ROOM)) {
+            setSearchParam(KEY_ROOM, room)
         }
     }, [room, searchParams, setSearchParams]);
 
+    function onRoomGenerate() {
+        const generated = randomName()
+        setSearchParam(KEY_ROOM, generated)
+        setRoom(getRoom)
+    }
+
     function onRoomChange(e: React.ChangeEvent<HTMLInputElement>) {
         const changed = e.target.value;
-        setSearchParam('room', changed)
+        setSearchParam(KEY_ROOM, changed)
         setRoom(changed)
     }
 
@@ -51,18 +60,24 @@ export default function Index() {
     const [user, setUser] = React.useState<string>(getUser())
 
     function getUser() {
-        const found = window.localStorage.getItem("user")
+        const found = window.localStorage.getItem(KEY_USER)
         if (found) return found
 
         const generated = randomName()
-        window.localStorage.setItem("user", generated)
+        window.localStorage.setItem(KEY_USER, generated)
         return generated
     }
 
     function onUserChange(e: React.ChangeEvent<HTMLInputElement>) {
         const changed = e.target.value
-        window.localStorage.setItem("user", changed)
+        window.localStorage.setItem(KEY_USER, changed)
         setUser(changed)
+    }
+
+    function onUserGenerate() {
+        const generated = randomName()
+        window.localStorage.setItem(KEY_USER, generated)
+        setUser(generated)
     }
 
     return (
@@ -76,11 +91,17 @@ export default function Index() {
                     <JoinCard
                         room={room}
                         onRoomChange={onRoomChange}
+                        onRoomGenerate={onRoomGenerate}
 
                         user={user}
                         onUserChange={onUserChange}
+                        onUserGenerate={onUserGenerate}
 
                         setProcess={setProcess}/>
+
+                    <a href="https://www.uni-stuttgart.de/impressum" target="_blank" rel="noopener" className="text-sm text-neutral-500 mt-[-1rem] text-center">
+                        Impressum
+                    </a>
                 </div>
             ) : null}
 
@@ -90,7 +111,6 @@ export default function Index() {
                     <RoomCard room={room} user={user} setProcess={setProcess}/>
                 </div>
             ) : null}
-
 
         </div>
     );

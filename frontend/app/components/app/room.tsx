@@ -1,12 +1,12 @@
 import {Button} from "../ui/button"
 import {Card, CardContent, CardFooter, CardHeader, CardTitle,} from "../ui/card"
-import React, {useDebugValue} from "react";
+import React, {useDebugValue, useEffect, useRef} from "react";
 import {Avatar, AvatarImage} from "../ui/avatar"
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow,} from "../ui/table"
 import {CircleArrowLeft, Eye, EyeOff, Trash2} from "lucide-react";
 import {toast} from "sonner";
 import {ResultContent} from "./result";
-import Vote from "./vote";
+import Ballot from "./ballot";
 import Share from "./share";
 import Hidden from "./hidden";
 import {io, Socket} from 'socket.io-client';
@@ -20,14 +20,30 @@ import {
     User, Votes, Notification
 } from "../../../../spec/types";
 import Error from "./error";
-import {useSearchParams} from "@remix-run/react";
+import {useLocation, useNavigationType, useSearchParams} from "@remix-run/react";
 import {useDebounce} from 'use-debounce';
+import Vote from "./vote";
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "../ui/dialog"
+
+// TODO: browser backbutton => localDisconnect
+
+// TODO: close room modal
 
 export function RoomCard(props: {
     room: string,
     user: string,
     setProcess: (process: string) => void;
 }) {
+
     const [searchParams, _] = useSearchParams();
 
     const [socket, __] = React.useState<Socket<ServerToClientEvents, ClientToServerEvents>>(() => io(window.location.origin, {
@@ -164,11 +180,12 @@ export function RoomCard(props: {
         console.log('socket', socket.id, 'emit', ClientEvents.CLOSE_ROOM)
         socket.emit(ClientEvents.CLOSE_ROOM, () => {
             console.log('socket', socket.id, 'ack', ClientEvents.CLOSE_ROOM)
+            toast('Room closed ...')
             onLocalBack()
         })
     }
 
-    React.useEffect(() => {
+    useEffect(() => {
         const onUnload = () => socket.disconnect()
         window.addEventListener("beforeunload", onUnload)
         return () => window.removeEventListener("beforeunload", onUnload)
@@ -184,8 +201,7 @@ export function RoomCard(props: {
             <Card className="overflow-hidden p-0 shadow-none">
                 <div className="grid p-0 md:grid-cols-2">
                     <div className="flex flex-col gap-6">
-                        <CardHeader className="flex flex-row justify-between items-center"
-                                    style={{marginTop: '-12px', marginBottom: '-10px'}}>
+                        <CardHeader className="flex flex-row justify-between items-center" style={{marginTop: '-12px', marginBottom: '-10px'}}>
 
                             <CardTitle>{props.room}</CardTitle>
 
@@ -213,8 +229,8 @@ export function RoomCard(props: {
                                             </TableCell>
                                             <TableCell>{user.name}</TableCell>
                                             <TableCell>{user.name === props.user ?
-                                                <Vote onChange={onVoteChange}/> : votes[user.name] ? hidden ?
-                                                    <Hidden/> : votes[user.name] : 'Still voting ...'}</TableCell>
+                                                <Ballot onChange={onVoteChange}/> : votes[user.name] ? hidden ?
+                                                    <Hidden/> : <Vote vote={votes[user.name]} /> : 'Still voting ...'}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -233,10 +249,31 @@ export function RoomCard(props: {
                                 <EyeOff/> Hide Votes
                             </Button>
 
-                            <Button type="submit" className="w-full" variant="secondary"
-                                    onClick={onLocalCloseRoom}>
-                                <Trash2/> Close Room
-                            </Button>
+                            <Dialog>
+                                <DialogTrigger asChild>
+                                    <Button type="submit" className="w-full" variant="secondary">
+                                        <Trash2/> Close Room
+                                    </Button>
+                                </DialogTrigger>
+
+                                <DialogContent className="sm:max-w-[425px]">
+                                    <DialogHeader>
+                                        <DialogTitle>Close Room</DialogTitle>
+                                        <DialogDescription>
+                                            Do you really want to the close the room and reset its state?
+                                        </DialogDescription>
+                                    </DialogHeader>
+
+                                    <DialogFooter>
+                                        <DialogClose asChild>
+                                            <Button variant="outline">No</Button>
+                                        </DialogClose>
+                                        <Button type="submit" onClick={onLocalCloseRoom}>Yes</Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+
+
 
                             <Button type="submit" className="w-full" onClick={onLocalBack}
                                     variant="secondary">

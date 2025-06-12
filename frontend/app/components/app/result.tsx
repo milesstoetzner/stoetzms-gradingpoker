@@ -6,6 +6,9 @@ import average from 'average'
 // @ts-ignore
 import median from 'median'
 import {Votes} from "../../../../spec/types";
+import {Button} from "../ui/button";
+import InfoIcon from "./info";
+import Vote from "./vote";
 
 type Distribution = {
     vote: string
@@ -18,7 +21,7 @@ export function ResultContent(props: {
 
     const values = Object.values(props.votes)
     const strings = values.filter(it => it !== null && it !== undefined && it !== '').map(it => String(it))
-    const numbers= strings.map(it => Number(it)).filter(it => !Number.isNaN(it))
+    const numbers = strings.map(it => Number(it)).filter(it => !Number.isNaN(it))
 
     let distribution: Distribution[] = []
     strings.forEach(vote => {
@@ -41,14 +44,16 @@ export function ResultContent(props: {
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead className="w-[100px]">Metric</TableHead>
+                        <TableHead className="w-[200px]">Metric</TableHead>
                         <TableHead>Value</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     <TableRow className="h-[57px]">
-                        <TableCell>
+                        <TableCell className="flex items-center">
                             Votes
+
+                            <InfoIcon message="Total votes"/>
                         </TableCell>
                         <TableCell>
                             {strings.length}
@@ -57,8 +62,10 @@ export function ResultContent(props: {
 
 
                     <TableRow className="h-[57px]">
-                        <TableCell>
+                        <TableCell className="flex items-center">
                             Average
+
+                            <InfoIcon message="The mathematical average of numeric votes"/>
                         </TableCell>
                         <TableCell>
                             {numbers.length === 0 ? Number.NaN : average(numbers).toFixed(2)}
@@ -67,8 +74,10 @@ export function ResultContent(props: {
 
 
                     <TableRow className="h-[57px]">
-                        <TableCell>
+                        <TableCell className="flex items-center">
                             Median
+
+                            <InfoIcon message="The mathematical median of numeric votes"/>
                         </TableCell>
                         <TableCell>
                             {median(numbers).toFixed(2)}
@@ -77,11 +86,17 @@ export function ResultContent(props: {
 
 
                     <TableRow className="h-[57px]">
-                        <TableCell>
+                        <TableCell className="flex items-center">
                             Most
+
+                            <InfoIcon message="The value with the highest absolute votes"/>
                         </TableCell>
                         <TableCell>
-                            {distribution.filter(it => it.absolute === distribution[0].absolute).map(it => it.vote).join(', ')}
+                            <div className="flex items-center gap-2">
+                                {distribution.filter(it => it.absolute === distribution[0].absolute).map(it =>
+                                    <Vote vote={it.vote} key={it.vote}/>)}
+                            </div>
+
                         </TableCell>
                     </TableRow>
                 </TableBody>
@@ -92,9 +107,19 @@ export function ResultContent(props: {
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead>Vote</TableHead>
-                        <TableHead>Absolute</TableHead>
-                        <TableHead>Relative</TableHead>
+                        <TableHead className="w-[200px]">Vote</TableHead>
+                        <TableHead className="w-[200px]">
+                            <div className="flex items-center">
+                                Absolute
+                                <InfoIcon message="The absolute number of votes"/>
+                            </div>
+                        </TableHead>
+                        <TableHead>
+                            <div className="flex items-center">
+                                Relative
+                                <InfoIcon message="The absolute number of votes relative to all votes"/>
+                            </div>
+                        </TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -103,7 +128,7 @@ export function ResultContent(props: {
 
                         <TableRow key={dist.vote} className="h-[57px]">
                             <TableCell>
-                                {dist.vote == 'undefined' ? 'Still voting ...' : dist.vote}
+                                <Vote vote={dist.vote}/>
                             </TableCell>
                             <TableCell>
                                 {dist.absolute}

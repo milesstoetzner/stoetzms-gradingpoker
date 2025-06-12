@@ -1,9 +1,9 @@
-import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../ui/tooltip";
 import {Button} from "../ui/button";
 import {Share2} from "lucide-react";
 import React from "react";
 import copy from "copy-to-clipboard";
 import {toast} from "sonner";
+import Hover from "./hover";
 
 
 export default function Share() {
@@ -13,16 +13,9 @@ export default function Share() {
         toast("Link copied ...")
     }
 
-    return (<TooltipProvider>
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <Button variant="outline" className="size-8" onClick={share} >
-                    <Share2 />
-                </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-                Copy Link
-            </TooltipContent>
-        </Tooltip>
-    </TooltipProvider>)
+    return (<Hover message="Copy link">
+        <Button variant="outline" className="size-8" onClick={share}>
+            <Share2/>
+        </Button>
+    </Hover>)
 }

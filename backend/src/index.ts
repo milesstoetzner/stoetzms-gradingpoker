@@ -9,6 +9,8 @@ import {generateSeed} from "./seed";
 
 // TODO: gracefully stop
 
+// TODO: rate limiter
+
 const store: { [room: string]: InitState } = {}
 
 const io = new Server({
