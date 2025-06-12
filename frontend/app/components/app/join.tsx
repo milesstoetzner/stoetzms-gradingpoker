@@ -12,8 +12,6 @@ import React from "react";
 import {ArrowLeft, ArrowLeftCircle, ArrowRightCircle, ArrowRightLeft, RefreshCw, Vote} from "lucide-react";
 import Hover from "./hover";
 
-// TODO: login icon
-
 export function JoinCard(props: {
     room: string,
     onRoomChange: (event: React.ChangeEvent<HTMLInputElement>) => void,

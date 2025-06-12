@@ -1,6 +1,6 @@
 import {Button} from "../ui/button"
 import {Card, CardContent, CardFooter, CardHeader, CardTitle,} from "../ui/card"
-import React, {useDebugValue, useEffect, useRef} from "react";
+import React, {useDebugValue, useEffect, useRef, useState} from "react";
 import {Avatar, AvatarImage} from "../ui/avatar"
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow,} from "../ui/table"
 import {CircleArrowLeft, Eye, EyeOff, Trash2} from "lucide-react";
@@ -34,10 +34,6 @@ import {
     DialogTrigger,
 } from "../ui/dialog"
 
-// TODO: browser backbutton => localDisconnect
-
-// TODO: close room modal
-
 export function RoomCard(props: {
     room: string,
     user: string,
@@ -45,6 +41,8 @@ export function RoomCard(props: {
 }) {
 
     const [searchParams, _] = useSearchParams();
+    const debug = searchParams.has('debug')
+    const dev = (window as any).__REACT_DEVTOOLS_GLOBAL_HOOK__ !== undefined
 
     const [socket, __] = React.useState<Socket<ServerToClientEvents, ClientToServerEvents>>(() => io(window.location.origin, {
         timeout: 2000,
@@ -88,7 +86,7 @@ export function RoomCard(props: {
         });
 
         socket.on(ServerEvents.INIT_STATE, (data: InitState) => {
-            console.log('socket', id, 'on', ServerEvents.INIT_STATE, data)
+            console.log('socket', id, 'on', ServerEvents.INIT_STATE, debug ? data : undefined)
             setUsers(data.users);
             setVotes(data.votes);
             setHidden(data.hidden);
@@ -101,12 +99,12 @@ export function RoomCard(props: {
         });
 
         socket.on(ServerEvents.ADD_USER, (data: AddUser) => {
-            console.log('socket', id, 'on', ServerEvents.ADD_USER, data)
+            console.log('socket', id, 'on', ServerEvents.ADD_USER, debug ? data : undefined)
             setUsers(prev => [...prev, data])
         })
 
         socket.on(ServerEvents.REMOVE_USER, (data: RemoveUser) => {
-            console.log('socket', id, 'on', ServerEvents.REMOVE_USER, data)
+            console.log('socket', id, 'on', ServerEvents.REMOVE_USER, debug ? data : undefined)
             setUsers(prev => prev.filter(it => it.name !== data.user))
             setVotes(prev => {
                 delete prev[data.user]
@@ -115,7 +113,7 @@ export function RoomCard(props: {
         })
 
         socket.on(ServerEvents.SET_VOTE, (data: SetVote) => {
-            console.log('socket', id, 'on', ServerEvents.SET_VOTE, data)
+            console.log('socket', id, 'on', ServerEvents.SET_VOTE, debug ? data : undefined)
             setVotes(prev => {
                 prev[data.user] = data.vote
                 return {...prev}
@@ -153,7 +151,7 @@ export function RoomCard(props: {
         onLocalHideVotes()
 
         const data = {vote}
-        console.log('socket', socket.id, 'emit', ClientEvents.SET_VOTE, data)
+        console.log('socket', socket.id, 'emit', ClientEvents.SET_VOTE, debug ? data : undefined)
         socket.emit(ClientEvents.SET_VOTE, data)
 
         setVotes({...votes, [props.user]: vote})
@@ -172,7 +170,7 @@ export function RoomCard(props: {
     }
 
     function onLocalBack() {
-        socket.disconnect()
+        if (socket) socket.disconnect()
         props.setProcess('JOIN')
     }
 
@@ -190,6 +188,23 @@ export function RoomCard(props: {
         window.addEventListener("beforeunload", onUnload)
         return () => window.removeEventListener("beforeunload", onUnload)
     }, [])
+
+    const location = useLocation();
+    const navigationType = useNavigationType();
+    const [render, setRender] = useState(0);
+
+    useEffect(() => {
+        // Strict mode results in two renders in dev mode
+        if (render < (dev ? 2: 1)) {
+            console.log('render', render)
+            return setRender(prev => prev + 1)
+        }
+
+        if (navigationType === 'POP') {
+            console.log('browser', 'back')
+            onLocalBack()
+        }
+    }, [location]);
 
     return (
         <div className="flex flex-col gap-6">
@@ -303,12 +318,15 @@ export function RoomCard(props: {
             <br/>
             <br/>
 
-            {searchParams.has('debug') && <React.Fragment>
+            {debug && <React.Fragment>
 
-                <pre>connected: {JSON.stringify(socket.connected, null, 4)}</pre>
-                <pre>hidden: {JSON.stringify(hidden, null, 4)}</pre>
-                <pre>users: {JSON.stringify(users, null, 4)}</pre>
-                <pre>votes: {JSON.stringify(votes, null, 4)}</pre>
+                <pre>{JSON.stringify({
+                    debug,
+                    connected: socket.connected,
+                    hidden,
+                    users,
+                    votes
+                }, null, 4)}</pre>
 
             </React.Fragment>}
 

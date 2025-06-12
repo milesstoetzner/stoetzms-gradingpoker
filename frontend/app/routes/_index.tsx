@@ -99,7 +99,8 @@ export default function Index() {
 
                         setProcess={setProcess}/>
 
-                    <a href="https://www.uni-stuttgart.de/impressum" target="_blank" rel="noopener" className="text-sm text-neutral-500 mt-[-1rem] text-center">
+                    <a href="https://www.uni-stuttgart.de/impressum" target="_blank" rel="noopener"
+                       className="text-sm text-neutral-500 mt-[-1rem] text-center">
                         Impressum
                     </a>
                 </div>
