@@ -3,6 +3,7 @@ services:
     build:
       dockerfile: frontend/Dockerfile
       context: .
+    restart: unless-stopped
     ports:
       - '3001:80'
 
@@ -10,5 +11,6 @@ services:
     build:
       dockerfile: backend/Dockerfile
       context: .
+    restart: unless-stopped
     ports:
       - '3000:3000'
