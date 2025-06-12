@@ -62,6 +62,8 @@ export type Notification = {
     message: string
 }
 
+export const HIDDEN = '*******'
+
 export interface ClientToServerEvents {
     [ClientEvents.JOIN_ROOM]: (data: JoinRoom) => void;
     [ClientEvents.CLOSE_ROOM]: (ack: Ack) => void;

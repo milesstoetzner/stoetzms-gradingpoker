@@ -17,7 +17,7 @@ import {
     InitState, RemoveUser,
     ServerEvents,
     ServerToClientEvents, SetVote,
-    User, Votes, Notification
+    User, Votes, Notification, HIDDEN
 } from "../../../../spec/types";
 import Error from "./error";
 import {useLocation, useNavigationType, useSearchParams} from "@remix-run/react";
@@ -86,7 +86,7 @@ export function RoomCard(props: {
         });
 
         socket.on(ServerEvents.INIT_STATE, (data: InitState) => {
-            console.log('socket', id, 'on', ServerEvents.INIT_STATE, debug ? data : undefined)
+            console.log('socket', id, 'on', ServerEvents.INIT_STATE, debug ? data : HIDDEN)
             setUsers(data.users);
             setVotes(data.votes);
             setHidden(data.hidden);
@@ -99,12 +99,12 @@ export function RoomCard(props: {
         });
 
         socket.on(ServerEvents.ADD_USER, (data: AddUser) => {
-            console.log('socket', id, 'on', ServerEvents.ADD_USER, debug ? data : undefined)
+            console.log('socket', id, 'on', ServerEvents.ADD_USER, debug ? data : HIDDEN)
             setUsers(prev => [...prev, data])
         })
 
         socket.on(ServerEvents.REMOVE_USER, (data: RemoveUser) => {
-            console.log('socket', id, 'on', ServerEvents.REMOVE_USER, debug ? data : undefined)
+            console.log('socket', id, 'on', ServerEvents.REMOVE_USER, debug ? data : HIDDEN)
             setUsers(prev => prev.filter(it => it.name !== data.user))
             setVotes(prev => {
                 delete prev[data.user]
@@ -113,7 +113,7 @@ export function RoomCard(props: {
         })
 
         socket.on(ServerEvents.SET_VOTE, (data: SetVote) => {
-            console.log('socket', id, 'on', ServerEvents.SET_VOTE, debug ? data : undefined)
+            console.log('socket', id, 'on', ServerEvents.SET_VOTE, debug ? data : HIDDEN)
             setVotes(prev => {
                 prev[data.user] = data.vote
                 return {...prev}
@@ -151,7 +151,7 @@ export function RoomCard(props: {
         onLocalHideVotes()
 
         const data = {vote}
-        console.log('socket', socket.id, 'emit', ClientEvents.SET_VOTE, debug ? data : undefined)
+        console.log('socket', socket.id, 'emit', ClientEvents.SET_VOTE, debug ? data : HIDDEN)
         socket.emit(ClientEvents.SET_VOTE, data)
 
         setVotes({...votes, [props.user]: vote})

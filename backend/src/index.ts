@@ -1,7 +1,8 @@
 import {Server} from "socket.io";
-import {Ack, ClientEvents, InitState, JoinRoom, ServerEvents, SetVote, User} from "../../spec/types";
+import {Ack, ClientEvents, HIDDEN, InitState, JoinRoom, ServerEvents, SetVote, User} from "../../spec/types";
 import {generateAvatar, haeParameter, haeVoid} from "./utils";
 import {generateSeed} from "./seed";
+import * as config from './config'
 
 // TODO: clean up stale rooms, e.g., no activity since 1 week
 
@@ -33,7 +34,7 @@ io.on("connection", (socket) => {
     console.log(socket.data.id, 'on', 'connected');
 
     socket.on(ClientEvents.JOIN_ROOM, haeParameter((data: JoinRoom) => {
-        console.log(socket.id, ClientEvents.JOIN_ROOM, 'on', data);
+        console.log(socket.id, ClientEvents.JOIN_ROOM, 'on', config.debug ? data : HIDDEN);
 
         // Init room
         if (!store[data.room]) {
@@ -73,12 +74,12 @@ io.on("connection", (socket) => {
         socket.join(data.room)
 
         // Emit init state
-        console.log('server', socket.data.id, 'emit', ServerEvents.INIT_STATE, room);
+        console.log('server', socket.data.id, 'emit', ServerEvents.INIT_STATE, config.debug ? room : HIDDEN);
         socket.emit(ServerEvents.INIT_STATE, room);
 
         // Emit add user to room
-        console.log('server', socket.data.room, 'emit', ServerEvents.ADD_USER, user);
-        socket.to(socket.data.room).emit(ServerEvents.ADD_USER, user)
+        console.log('server', socket.data.room, 'emit', ServerEvents.ADD_USER, config.debug ? user : HIDDEN);
+        socket.to(socket.data.room).emit(ServerEvents.ADD_USER, user);
 
         // Emit hide votes to room
         console.log('server', socket.data.room, 'emit', ServerEvents.HIDE_VOTES);
@@ -95,8 +96,8 @@ io.on("connection", (socket) => {
 
         // Emit set vote to room
         const emit = {user: socket.data.user, vote: data.vote}
-        console.log('server', socket.data.room, 'emit', ServerEvents.SET_VOTE, emit);
-        socket.to(socket.data.room).emit(ServerEvents.SET_VOTE, emit);
+        console.log('server', socket.data.room, 'emit', ServerEvents.SET_VOTE, config.debug ? emit : HIDDEN)
+        socket.to(socket.data.room).emit(ServerEvents.SET_VOTE, emit)
     }))
 
     socket.on(ClientEvents.SHOW_VOTES, haeVoid(() => {
@@ -150,7 +151,7 @@ io.on("connection", (socket) => {
             } else {
                 // Emit remove user to room
                 const emit = {user: socket.data.user}
-                console.log('server', socket.data.room, 'emit', ServerEvents.REMOVE_USER, emit);
+                console.log('server', socket.data.room, 'emit', ServerEvents.REMOVE_USER, config.debug ? emit : HIDDEN)
                 socket.to(socket.data.room).emit(ServerEvents.REMOVE_USER, emit)
             }
         }
@@ -163,7 +164,7 @@ io.on("connection", (socket) => {
 
     function emitError(message: string) {
         const emit = {message}
-        console.log('server', socket.data.id, 'emit', ServerEvents.SHOW_NOTIFICATION, emit);
+        console.log('server', socket.data.id, 'emit', ServerEvents.SHOW_NOTIFICATION, config.debug ? emit : HIDDEN)
         socket.emit(ServerEvents.SHOW_NOTIFICATION, emit)
     }
 
