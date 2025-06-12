@@ -27,14 +27,15 @@ export function RoomCard(props: {
     user: string,
     setProcess: (process: string) => void;
 }) {
-    const [searchParams, setSearchParams] = useSearchParams();
+    const [searchParams, _] = useSearchParams();
 
-    const [socket, _] = React.useState<Socket<ServerToClientEvents, ClientToServerEvents>>(() => io(window.location.origin, {
+    const [socket, __] = React.useState<Socket<ServerToClientEvents, ClientToServerEvents>>(() => io(window.location.origin, {
         timeout: 2000,
         path: "/socket.io",
     }))
 
-    const [connected, setConnected] = React.useState(false);
+    const [error, setError] = React.useState<string>();
+
     React.useEffect(() => {
         let id: string;
         socket.connect()
@@ -42,20 +43,28 @@ export function RoomCard(props: {
         socket.on('connect', () => {
             id = socket.id!
             console.log('socket', id, 'on', 'connect')
-            setConnected(true);
+            setError(undefined);
             socket.emit(ClientEvents.JOIN_ROOM, {user: props.user, room: props.room, seed: searchParams.has('seed')});
-            toast('Connected ...')
+        });
+
+        socket.on(ServerEvents.RECONNECT, () => {
+            console.log('socket', id, 'on', 'reconnect',)
+            setError(undefined);
         });
 
         socket.on('disconnect', (reason) => {
             console.log('socket', id, 'on', 'disconnect', reason)
-            setConnected(false);
-            toast('Disconnected ...')
+
+            if (reason === "io server disconnect") {
+                setError('The server closed the connection ... will not reconnect ...')
+            }  else {
+                setError('No connection ...')
+            }
         });
 
         socket.on('connect_error', (error) => {
             console.log('socket', id, 'on', 'connect_error', error)
-            toast('Connection error ...')
+            setError('Connection error ...')
         });
 
         socket.on(ServerEvents.INIT_STATE, (data: InitState) => {
@@ -164,7 +173,7 @@ export function RoomCard(props: {
     return (
         <div className="flex flex-col gap-6">
 
-            <Health connected={connected}/>
+            <Health error={error}/>
 
             <Card className="overflow-hidden p-0 shadow-none">
                 <div className="grid p-0 md:grid-cols-2">
@@ -230,7 +239,7 @@ export function RoomCard(props: {
                         </CardFooter>
                     </div>
 
-                    <div className="flex flex-col gap-6 bg-muted">
+                    <div className="flex flex-col gap-6 bg-muted min-h-[200px]">
 
                         {hidden ? <div className="h-full flex items-center justify-center">
                                 <p className="text-sm text-center">

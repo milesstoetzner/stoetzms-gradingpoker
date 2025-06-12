@@ -6,6 +6,7 @@ export enum ClientEvents {
     HIDE_VOTES = 'hide-votes',
 
     CLOSE_ROOM = 'close-room',
+
 }
 
 export enum ServerEvents {
@@ -20,6 +21,9 @@ export enum ServerEvents {
     HIDE_VOTES = 'hide-votes',
 
     SHOW_NOTIFICATION = 'show-notification',
+
+    // fix
+    RECONNECT = 'reconnect',
 }
 
 export type JoinRoom = {
@@ -79,4 +83,6 @@ export interface ServerToClientEvents {
     [ServerEvents.HIDE_VOTES]: () => void;
 
     [ServerEvents.SHOW_NOTIFICATION]: (data: Notification) => void;
+
+    [ServerEvents.RECONNECT]: (attempt: number) => void;
 }

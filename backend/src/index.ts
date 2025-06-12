@@ -33,10 +33,6 @@ io.on("connection", (socket) => {
     socket.on(ClientEvents.JOIN_ROOM, haeParameter((data: JoinRoom) => {
         console.log(socket.id, ClientEvents.JOIN_ROOM, 'on', data);
 
-        // Init metadata
-        socket.data.user = data.user
-        socket.data.room = data.room
-
         // Init room
         if (!store[data.room]) {
             store[data.room] = {hidden: true, users: [], votes: {}}
@@ -53,8 +49,16 @@ io.on("connection", (socket) => {
         }
 
         // Check if another user with same name exists
-        const found = room.users.find(it => it.name === socket.data.user)
-        if (found) return emitError(`User ${socket.data.user} already exists ...`)
+        const found = room.users.find(it => it.name === data.user)
+        if (found) {
+            emitError(`User ${data.user} already exists ...`)
+            return socket.disconnect(true)
+        }
+
+
+        // Init metadata
+        socket.data.user = data.user
+        socket.data.room = data.room
 
         // Add user to room
         const user: User = {
