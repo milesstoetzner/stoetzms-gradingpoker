@@ -4,14 +4,12 @@
 
 html,
 body {
-
-    background: linear-gradient(90deg, #00C9FF 0%, #92FE9D 100%);
+    background: linear-gradient(90deg, #00c9ff 0%, #92fe9d 100%);
 
     @media (prefers-color-scheme: dark) {
         color-scheme: dark;
     }
 }
-
 
 @layer base {
     :root {
@@ -70,7 +68,6 @@ body {
     }
 }
 
-
 @layer base {
     * {
         @apply border-border;
@@ -80,7 +77,6 @@ body {
         @apply bg-background text-foreground;
     }
 }
-
 
 .custom-circle {
     width: 12px;

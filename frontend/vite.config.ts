@@ -1,10 +1,10 @@
-import {vitePlugin as remix} from "@remix-run/dev";
-import {defineConfig} from "vite";
-import tsconfigPaths from "vite-tsconfig-paths";
+import {vitePlugin as remix} from '@remix-run/dev'
+import {defineConfig} from 'vite'
+import tsconfigPaths from 'vite-tsconfig-paths'
 
-declare module "@remix-run/node" {
+declare module '@remix-run/node' {
     interface Future {
-        v3_singleFetch: true;
+        v3_singleFetch: true
     }
 }
 
@@ -18,12 +18,12 @@ export default defineConfig({
                 v3_singleFetch: true,
                 v3_lazyRouteDiscovery: true,
             },
-            ssr: false
+            ssr: false,
         }),
         tsconfigPaths(),
     ],
     server: {
         allowedHosts: true,
-        host: true
-    }
-});
+        host: true,
+    },
+})

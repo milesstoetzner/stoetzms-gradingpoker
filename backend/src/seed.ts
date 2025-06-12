@@ -1,5 +1,5 @@
-import {generateAvatar} from "./utils"
-import randomName from "@scaleway/random-name";
+import {generateAvatar} from './utils'
+import randomName from '@scaleway/random-name'
 
 export function generateSeed() {
     const users = [
@@ -18,7 +18,8 @@ export function generateSeed() {
         {
             name: randomName(),
             avatar: generateAvatar(),
-        },]
+        },
+    ]
 
     const votes = {
         [users[0].name]: '1.0',
