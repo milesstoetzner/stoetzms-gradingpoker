@@ -12,6 +12,8 @@ import * as config from './config'
 
 // TODO: rate limiter
 
+// TODO: health endpoint
+
 const store: {[room: string]: InitState} = {}
 
 const io = new Server({
