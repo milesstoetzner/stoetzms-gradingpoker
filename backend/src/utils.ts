@@ -25,3 +25,13 @@ export function haeParameter<T>(fn: (options: T) => any): (options: T) => void {
         }
     }
 }
+
+export function haeParameters<T, V>(fn: (options: T, o: V) => any): (options: T, o: V) => void {
+    return async (options: T, o: V) => {
+        try {
+            await fn(options, o)
+        } catch (e) {
+            console.log(e)
+        }
+    }
+}

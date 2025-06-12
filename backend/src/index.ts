@@ -1,6 +1,6 @@
 import {Server} from 'socket.io'
 import {Ack, ClientEvents, HIDDEN, InitState, JoinRoom, ServerEvents, SetVote, User} from '../../spec/types'
-import {generateAvatar, haeParameter, haeVoid} from './utils'
+import {generateAvatar, haeParameter, haeParameters, haeVoid} from './utils'
 import {generateSeed} from './seed'
 import * as config from './config'
 
@@ -14,8 +14,9 @@ import * as config from './config'
 
 // TODO: health endpoint
 
-const store: {[room: string]: InitState} = {}
+const store: { [room: string]: InitState } = {}
 
+// TODO: types
 const io = new Server({
     path: '/socket.io',
     cors: {
@@ -31,13 +32,14 @@ io.on('error', (err: Error) => {
 })
 
 io.on('connection', socket => {
+    // TODO: migrate from socket.data to local variables
     socket.data.id = socket.id
 
     console.log('socket', socket.data.id, 'on', 'connected')
 
     socket.on(
         ClientEvents.JOIN_ROOM,
-        haeParameter((data: JoinRoom) => {
+        haeParameters((data: JoinRoom, ack: Ack) => {
             console.log('socket', socket.id, 'on', ClientEvents.JOIN_ROOM, config.debug ? data : HIDDEN)
 
             // Init room
@@ -57,12 +59,10 @@ io.on('connection', socket => {
 
             // Check if another user with same name exists
             const found = room.users.find(it => it.name === data.user)
-            if (found) {
-                emitError(`User ${data.user} already exists ...`)
-                return socket.disconnect(true)
-            }
+            if (found) return emitError(`User ${data.user} already exists ...`, () => socket.disconnect(true))
 
             // Init metadata
+            socket.data.ok = true
             socket.data.user = data.user
             socket.data.room = data.room
 
@@ -87,6 +87,9 @@ io.on('connection', socket => {
             // Emit hide votes to room
             console.log('server', socket.data.room, 'emit', ServerEvents.HIDE_VOTES)
             socket.to(socket.data.room).emit(ServerEvents.HIDE_VOTES)
+
+            // Emit ack
+            ack({ok: true})
         })
     )
 
@@ -94,7 +97,9 @@ io.on('connection', socket => {
         ClientEvents.SET_VOTE,
         haeParameter((data: Omit<SetVote, 'user'>) => {
             console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.SET_VOTE)
+            assert()
 
+            // Assert okay
             // Update state
             const room = store[socket.data.room]
             if (!room) return emitError(`Room ${socket.data.room} not found ...`)
@@ -111,6 +116,7 @@ io.on('connection', socket => {
         ClientEvents.SHOW_VOTES,
         haeVoid(() => {
             console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.SHOW_VOTES)
+            assert()
 
             // Update state
             const room = store[socket.data.room]
@@ -127,6 +133,7 @@ io.on('connection', socket => {
         ClientEvents.HIDE_VOTES,
         haeVoid(() => {
             console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.HIDE_VOTES)
+            assert()
 
             // Update state
             const room = store[socket.data.room]
@@ -143,7 +150,8 @@ io.on('connection', socket => {
         ClientEvents.CLOSE_ROOM,
         haeParameter((ack: Ack) => {
             console.log(socket.data.id, socket.data.room, 'on', ClientEvents.CLOSE_ROOM)
-            ack()
+            assert()
+            ack({ok: true})
             closeRoom()
         })
     )
@@ -152,6 +160,7 @@ io.on('connection', socket => {
         'disconnect',
         haeParameter(reason => {
             console.log('socket', socket.data.id, socket.data.room, 'on', 'disconnected', reason)
+            assert()
 
             if (socket.data.room) {
                 // Update state
@@ -188,10 +197,10 @@ io.on('connection', socket => {
         })
     )
 
-    function emitError(message: string) {
+    function emitError(message: string, ack?: Ack): void {
         const emit = {message}
         console.log('server', socket.data.id, 'emit', ServerEvents.SHOW_NOTIFICATION, config.debug ? emit : HIDDEN)
-        socket.emit(ServerEvents.SHOW_NOTIFICATION, emit)
+        socket.emit(ServerEvents.SHOW_NOTIFICATION, emit, ack)
     }
 
     function closeRoom() {
@@ -212,6 +221,10 @@ io.on('connection', socket => {
                 console.log(e)
             }
         })
+    }
+
+    function assert() {
+        if (!socket.data.ok) socket.disconnect(true)
     }
 })
 

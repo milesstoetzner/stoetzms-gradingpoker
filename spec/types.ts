@@ -56,7 +56,11 @@ export type User = {
     avatar: string
 }
 
-export type Ack = () => void
+export type Ack = (data: Response) => void
+
+export type Response = {
+    ok: boolean
+}
 
 export type Notification = {
     message: string
@@ -65,7 +69,7 @@ export type Notification = {
 export const HIDDEN = '*******'
 
 export interface ClientToServerEvents {
-    [ClientEvents.JOIN_ROOM]: (data: JoinRoom) => void;
+    [ClientEvents.JOIN_ROOM]: (data: JoinRoom, ack: Ack) => void;
     [ClientEvents.CLOSE_ROOM]: (ack: Ack) => void;
 
     [ClientEvents.SET_VOTE]: (data: Omit<SetVote, 'user'>) => void;
@@ -84,7 +88,7 @@ export interface ServerToClientEvents {
     [ServerEvents.SHOW_VOTES]: () => void;
     [ServerEvents.HIDE_VOTES]: () => void;
 
-    [ServerEvents.SHOW_NOTIFICATION]: (data: Notification) => void;
+    [ServerEvents.SHOW_NOTIFICATION]: (data: Notification, ack?: Ack) => void;
 
     [ServerEvents.RECONNECT]: (attempt: number) => void;
 }

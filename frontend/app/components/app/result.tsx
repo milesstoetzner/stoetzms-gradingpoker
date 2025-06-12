@@ -49,7 +49,7 @@ export function ResultContent(props: {votes: Votes}) {
                         <TableRow className="h-[57px]">
                             <TableCell className="flex items-center">
                                 Votes
-                                <InfoIcon message="Total votes" />
+                                <InfoIcon message="Total numbers of votes" />
                             </TableCell>
                             <TableCell>{strings.length}</TableCell>
                         </TableRow>
@@ -59,7 +59,7 @@ export function ResultContent(props: {votes: Votes}) {
                                 Average
                                 <InfoIcon message="The mathematical average of numeric votes" />
                             </TableCell>
-                            <TableCell>{numbers.length === 0 ? Number.NaN : average(numbers).toFixed(2)}</TableCell>
+                            <TableCell>{numbers.length === 0 ? '(no numeric votes)' : average(numbers).toFixed(2)}</TableCell>
                         </TableRow>
 
                         <TableRow className="h-[57px]">
@@ -67,7 +67,7 @@ export function ResultContent(props: {votes: Votes}) {
                                 Median
                                 <InfoIcon message="The mathematical median of numeric votes" />
                             </TableCell>
-                            <TableCell>{median(numbers).toFixed(2)}</TableCell>
+                            <TableCell>{numbers.length === 0 ? '(no numeric votes)' : median(numbers).toFixed(2)}</TableCell>
                         </TableRow>
 
                         <TableRow className="h-[57px]">

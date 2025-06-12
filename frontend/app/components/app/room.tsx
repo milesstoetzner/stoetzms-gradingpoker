@@ -1,6 +1,6 @@
 import {Button} from '../ui/button'
 import {Card, CardContent, CardFooter, CardHeader, CardTitle} from '../ui/card'
-import React, {useDebugValue, useEffect, useRef, useState} from 'react'
+import React, {useEffect, useState} from 'react'
 import {Avatar, AvatarImage} from '../ui/avatar'
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '../ui/table'
 import {CircleArrowLeft, Eye, EyeOff, Trash2} from 'lucide-react'
@@ -22,7 +22,8 @@ import {
     User,
     Votes,
     Notification,
-    HIDDEN,
+    Response,
+    HIDDEN, Ack,
 } from '../../../../spec/types'
 import Error from './error'
 import {useLocation, useNavigationType, useSearchParams} from '@remix-run/react'
@@ -39,7 +40,7 @@ import {
     DialogTrigger,
 } from '../ui/dialog'
 
-export function RoomCard(props: {room: string; user: string; setProcess: (process: string) => void}) {
+export function RoomCard(props: { room: string; user: string; setProcess: (process: string) => void }) {
     const [searchParams, _] = useSearchParams()
     const debug = searchParams.has('debug')
     const dev = (window as any).__REACT_DEVTOOLS_GLOBAL_HOOK__ !== undefined
@@ -51,8 +52,8 @@ export function RoomCard(props: {room: string; user: string; setProcess: (proces
         })
     )
 
-    const [immediateError, setImmediateError] = React.useState<string>()
-    const [debouncedError, setDebouncedError] = useDebounce<string | undefined>('', 500)
+    const [joined, setJoined] = useState(false)
+    const [error, setError] = useDebounce<string | undefined>(undefined, 500)
 
     React.useEffect(() => {
         let id: string
@@ -61,30 +62,35 @@ export function RoomCard(props: {room: string; user: string; setProcess: (proces
         socket.on('connect', () => {
             id = socket.id!
             console.log('socket', id, 'on', 'connect')
-            setImmediateError(undefined)
-            setDebouncedError(undefined)
-            socket.emit(ClientEvents.JOIN_ROOM, {user: props.user, room: props.room, seed: searchParams.has('seed')})
+
+            socket.emit(ClientEvents.JOIN_ROOM, {
+                user: props.user,
+                room: props.room,
+                seed: searchParams.has('seed')
+            }, (data: Response) => {
+                console.log('socket', socket.id, 'ack', ClientEvents.JOIN_ROOM, data)
+                if (!data.ok) return
+                setJoined(true)
+            })
         })
 
         socket.on(ServerEvents.RECONNECT, () => {
             console.log('socket', id, 'on', 'reconnect')
-            setImmediateError(undefined)
-            setDebouncedError(undefined)
+            setError(undefined)
         })
 
         socket.on('disconnect', reason => {
             console.log('socket', id, 'on', 'disconnect', reason)
 
             if (reason === 'io server disconnect') {
-                setImmediateError('The server closed the connection ... will not reconnect ...')
+                onLocalBack()
             } else {
-                setDebouncedError('No connection ...')
+                setError('No connection ...')
             }
         })
 
         socket.on('connect_error', error => {
             console.log('socket', id, 'on', 'connect_error', error)
-            setImmediateError('Connection error ...')
         })
 
         socket.on(ServerEvents.INIT_STATE, (data: InitState) => {
@@ -132,9 +138,10 @@ export function RoomCard(props: {room: string; user: string; setProcess: (proces
             setHidden(true)
         })
 
-        socket.on(ServerEvents.SHOW_NOTIFICATION, (data: Notification) => {
+        socket.on(ServerEvents.SHOW_NOTIFICATION, (data: Notification, ack?: Ack) => {
             console.log('socket', id, 'on', ServerEvents.SHOW_NOTIFICATION)
             toast(data.message)
+            if (ack) ack({ok: true})
         })
 
         return () => {
@@ -176,8 +183,9 @@ export function RoomCard(props: {room: string; user: string; setProcess: (proces
 
     function onLocalCloseRoom() {
         console.log('socket', socket.id, 'emit', ClientEvents.CLOSE_ROOM)
-        socket.emit(ClientEvents.CLOSE_ROOM, () => {
-            console.log('socket', socket.id, 'ack', ClientEvents.CLOSE_ROOM)
+        socket.emit(ClientEvents.CLOSE_ROOM, (data: Response) => {
+            console.log('socket', socket.id, 'ack', ClientEvents.CLOSE_ROOM, data)
+            if (!data.ok) return
             toast('Room closed ...')
             onLocalBack()
         })
@@ -208,11 +216,10 @@ export function RoomCard(props: {room: string; user: string; setProcess: (proces
 
     return (
         <div className="flex flex-col gap-6">
-            <Error error={immediateError} />
 
-            <Error error={debouncedError} />
+            <Error error={error}/>
 
-            <Card className="overflow-hidden p-0 shadow-none">
+            {joined && <Card className="overflow-hidden p-0 shadow-none">
                 <div className="grid p-0 md:grid-cols-2">
                     <div className="flex flex-col gap-6">
                         <CardHeader
@@ -221,7 +228,7 @@ export function RoomCard(props: {room: string; user: string; setProcess: (proces
                         >
                             <CardTitle>{props.room}</CardTitle>
 
-                            <Share />
+                            <Share/>
                         </CardHeader>
 
                         <CardContent className="min-h-[450px]">
@@ -246,12 +253,12 @@ export function RoomCard(props: {room: string; user: string; setProcess: (proces
                                             <TableCell>{user.name}</TableCell>
                                             <TableCell>
                                                 {user.name === props.user ? (
-                                                    <Ballot onChange={onVoteChange} />
+                                                    <Ballot onChange={onVoteChange}/>
                                                 ) : votes[user.name] ? (
                                                     hidden ? (
-                                                        <Hidden />
+                                                        <Hidden/>
                                                     ) : (
-                                                        <Vote vote={votes[user.name]} />
+                                                        <Vote vote={votes[user.name]}/>
                                                     )
                                                 ) : (
                                                     'Still voting ...'
@@ -270,17 +277,17 @@ export function RoomCard(props: {room: string; user: string; setProcess: (proces
                                 onClick={onLocalShowVotes}
                                 disabled={!Object.values(votes).length}
                             >
-                                <Eye /> Show Votes
+                                <Eye/> Show Votes
                             </Button>
 
                             <Button type="submit" className="w-full" variant="secondary" onClick={onLocalHideVotes}>
-                                <EyeOff /> Hide Votes
+                                <EyeOff/> Hide Votes
                             </Button>
 
                             <Dialog>
                                 <DialogTrigger asChild>
                                     <Button type="submit" className="w-full" variant="secondary">
-                                        <Trash2 /> Close Room
+                                        <Trash2/> Close Room
                                     </Button>
                                 </DialogTrigger>
 
@@ -304,7 +311,7 @@ export function RoomCard(props: {room: string; user: string; setProcess: (proces
                             </Dialog>
 
                             <Button type="submit" className="w-full" onClick={onLocalBack} variant="secondary">
-                                <CircleArrowLeft /> Leave Room
+                                <CircleArrowLeft/> Leave Room
                             </Button>
                         </CardFooter>
                     </div>
@@ -315,18 +322,21 @@ export function RoomCard(props: {room: string; user: string; setProcess: (proces
                                 <p className="text-sm text-center">Still voting ...</p>
                             </div>
                         ) : (
-                            <ResultContent votes={votes} />
+                            <ResultContent votes={votes}/>
                         )}
                     </div>
                 </div>
             </Card>
 
-            <br />
-            <br />
-            <br />
+            }
 
             {debug && (
                 <React.Fragment>
+
+                    <br/>
+                    <br/>
+                    <br/>
+
                     <pre>
                         {JSON.stringify(
                             {
