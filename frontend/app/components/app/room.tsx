@@ -1,6 +1,6 @@
 import {Button} from "../ui/button"
 import {Card, CardContent, CardFooter, CardHeader, CardTitle,} from "../ui/card"
-import React from "react";
+import React, {useDebugValue} from "react";
 import {Avatar, AvatarImage} from "../ui/avatar"
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow,} from "../ui/table"
 import {CircleArrowLeft, Eye, EyeOff, Trash2} from "lucide-react";
@@ -19,8 +19,9 @@ import {
     ServerToClientEvents, SetVote,
     User, Votes, Notification
 } from "../../../../spec/types";
-import Health from "./health";
+import Error from "./error";
 import {useSearchParams} from "@remix-run/react";
+import {useDebounce} from 'use-debounce';
 
 export function RoomCard(props: {
     room: string,
@@ -34,7 +35,8 @@ export function RoomCard(props: {
         path: "/socket.io",
     }))
 
-    const [error, setError] = React.useState<string>();
+    const [immediateError, setImmediateError] = React.useState<string>();
+    const [debouncedError, setDebouncedError] = useDebounce<string | undefined>('', 500)
 
     React.useEffect(() => {
         let id: string;
@@ -43,28 +45,30 @@ export function RoomCard(props: {
         socket.on('connect', () => {
             id = socket.id!
             console.log('socket', id, 'on', 'connect')
-            setError(undefined);
+            setImmediateError(undefined);
+            setDebouncedError(undefined);
             socket.emit(ClientEvents.JOIN_ROOM, {user: props.user, room: props.room, seed: searchParams.has('seed')});
         });
 
         socket.on(ServerEvents.RECONNECT, () => {
             console.log('socket', id, 'on', 'reconnect',)
-            setError(undefined);
+            setImmediateError(undefined);
+            setDebouncedError(undefined);
         });
 
         socket.on('disconnect', (reason) => {
             console.log('socket', id, 'on', 'disconnect', reason)
 
             if (reason === "io server disconnect") {
-                setError('The server closed the connection ... will not reconnect ...')
-            }  else {
-                setError('No connection ...')
+                setImmediateError('The server closed the connection ... will not reconnect ...')
+            } else {
+                setDebouncedError('No connection ...')
             }
         });
 
         socket.on('connect_error', (error) => {
             console.log('socket', id, 'on', 'connect_error', error)
-            setError('Connection error ...')
+            setImmediateError('Connection error ...')
         });
 
         socket.on(ServerEvents.INIT_STATE, (data: InitState) => {
@@ -173,7 +177,9 @@ export function RoomCard(props: {
     return (
         <div className="flex flex-col gap-6">
 
-            <Health error={error}/>
+            <Error error={immediateError}/>
+
+            <Error error={debouncedError}/>
 
             <Card className="overflow-hidden p-0 shadow-none">
                 <div className="grid p-0 md:grid-cols-2">
