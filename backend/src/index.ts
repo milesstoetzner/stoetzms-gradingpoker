@@ -33,12 +33,12 @@ io.on('error', (err: Error) => {
 io.on('connection', socket => {
     socket.data.id = socket.id
 
-    console.log(socket.data.id, 'on', 'connected')
+    console.log('socket', socket.data.id, 'on', 'connected')
 
     socket.on(
         ClientEvents.JOIN_ROOM,
         haeParameter((data: JoinRoom) => {
-            console.log(socket.id, ClientEvents.JOIN_ROOM, 'on', config.debug ? data : HIDDEN)
+            console.log('socket', socket.id, 'on', ClientEvents.JOIN_ROOM, config.debug ? data : HIDDEN)
 
             // Init room
             if (!store[data.room]) {
@@ -93,7 +93,7 @@ io.on('connection', socket => {
     socket.on(
         ClientEvents.SET_VOTE,
         haeParameter((data: Omit<SetVote, 'user'>) => {
-            console.log(socket.data.id, socket.data.room, 'on', ClientEvents.SET_VOTE)
+            console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.SET_VOTE)
 
             // Update state
             const room = store[socket.data.room]
@@ -110,7 +110,7 @@ io.on('connection', socket => {
     socket.on(
         ClientEvents.SHOW_VOTES,
         haeVoid(() => {
-            console.log(socket.data.id, socket.data.room, 'on', ClientEvents.SHOW_VOTES)
+            console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.SHOW_VOTES)
 
             // Update state
             const room = store[socket.data.room]
@@ -126,7 +126,7 @@ io.on('connection', socket => {
     socket.on(
         ClientEvents.HIDE_VOTES,
         haeVoid(() => {
-            console.log(socket.data.id, socket.data.room, 'on', ClientEvents.HIDE_VOTES)
+            console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.HIDE_VOTES)
 
             // Update state
             const room = store[socket.data.room]
@@ -151,7 +151,7 @@ io.on('connection', socket => {
     socket.on(
         'disconnect',
         haeParameter(reason => {
-            console.log(socket.data.id, socket.data.room, 'on', 'disconnected', reason)
+            console.log('socket', socket.data.id, socket.data.room, 'on', 'disconnected', reason)
 
             if (socket.data.room) {
                 // Update state
