@@ -19,6 +19,7 @@
         "@fractalsoftware/random-avatar-generator": "^1.0.11",
         "@scaleway/random-name": "^5.1.1",
         "eslint-config-prettier": "^10.1.5",
+        "limiter": "^3.0.0",
         "prettier": "^3.5.3",
         "socket.io": "^4.8.1",
         "socket.io-client": "^4.8.1"

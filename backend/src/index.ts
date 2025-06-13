@@ -14,11 +14,10 @@ import {
 import {generateAvatar} from './utils'
 import {generateSeed} from './seed'
 import * as config from './config'
+import {RateLimiter} from "limiter";
+
 
 // TODO: clean up stale rooms, e.g., no activity since 1 week
-
-// TODO: rate limiter
-
 // TODO: persist store so that clients are not broken on restarts
 const store: { [room: string]: InitState } = {}
 
@@ -41,6 +40,7 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, {}, SocketData
     pingTimeout: 2000,
 })
 
+// @ts-ignore
 io.on('error', (err: Error) => {
     console.log('server', 'on', 'error', err)
 })
@@ -57,9 +57,12 @@ io.on('connection', socket => {
 
     socket.on(
         ClientEvents.JOIN_ROOM,
-        (data: JoinRoom, ack: Ack) => {
+        async (data: JoinRoom, ack: Ack) => {
             try {
                 console.log('socket', socket.data.id, 'on', ClientEvents.JOIN_ROOM, config.debug ? data : HIDDEN)
+
+                // Limit
+                await limit()
 
                 // Init room
                 if (!store[data.room]) {
@@ -97,14 +100,7 @@ io.on('connection', socket => {
                 socket.join(data.room)
 
                 // Emit init state
-                const init: InitState = {
-                    hidden: room.hidden,
-                    users: room.users,
-                    votes: room.hidden ? {} : room.votes,
-                    voted: room.voted
-                }
-                console.log('server', socket.data.id, 'emit', ServerEvents.INIT_STATE, config.debug ? init : HIDDEN)
-                socket.emit(ServerEvents.INIT_STATE, init)
+                emitInitState(room)
 
                 // Emit add user to room
                 console.log('server', socket.data.room, 'emit', ServerEvents.ADD_USER, config.debug ? user : HIDDEN)
@@ -124,20 +120,23 @@ io.on('connection', socket => {
 
     socket.on(
         ClientEvents.SET_VOTE,
-        (data: SetVote) => {
+        async (data: SetVote) => {
             try {
                 console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.SET_VOTE)
+
+                // Limit
+                await limit()
 
                 // Assert
                 if (!socket.data.ok) return socket.disconnect(true)
 
-                // Assert okay
-                // Update state
+                // Get room
                 const room = store[socket.data.room]
                 if (!room) return emitError(`Room ${socket.data.room} not found ...`)
+
+                // Update state
                 room.votes[socket.data.user] = data.vote
                 room.voted[socket.data.user] = true
-
 
                 // Emit set vote to room
                 const emit = {user: socket.data.user}
@@ -151,16 +150,21 @@ io.on('connection', socket => {
 
     socket.on(
         ClientEvents.SHOW_VOTES,
-        () => {
+        async () => {
             try {
                 console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.SHOW_VOTES)
+
+                // Limit
+                await limit()
 
                 // Assert
                 if (!socket.data.ok) return socket.disconnect(true)
 
-                // Update state
+                // Get room
                 const room = store[socket.data.room]
                 if (!room) return emitError(`Room ${socket.data.room} not found ...`)
+
+                // Update state
                 room.hidden = false
 
                 // Emit show votes to room
@@ -176,17 +180,21 @@ io.on('connection', socket => {
 
     socket.on(
         ClientEvents.HIDE_VOTES,
-        () => {
+        async () => {
             try {
-
                 console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.HIDE_VOTES)
+
+                // Limit
+                await limit()
 
                 // Assert
                 if (!socket.data.ok) return socket.disconnect(true)
 
-                // Update state
+                // Get room
                 const room = store[socket.data.room]
                 if (!room) return emitError(`Room ${socket.data.room} not found ...`)
+
+                // Update state
                 room.hidden = true
 
                 // Emit hide votes to room
@@ -200,10 +208,15 @@ io.on('connection', socket => {
 
     socket.on(
         ClientEvents.CLOSE_ROOM,
-        (ack: Ack) => {
+        async (ack: Ack) => {
             try {
 
                 console.log(socket.data.id, socket.data.room, 'on', ClientEvents.CLOSE_ROOM)
+
+                // Limit
+                await limit()
+
+
                 // Assert
                 if (!socket.data.ok) return socket.disconnect(true)
 
@@ -218,16 +231,22 @@ io.on('connection', socket => {
         }
     )
 
-    socket.on(ClientEvents.INIT_STATE, () => {
+    socket.on(ClientEvents.INIT_STATE, async () => {
         try {
-            console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.INIT_STATE, reason)
+            console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.INIT_STATE)
+
+            // Limit
+            await limit()
 
             // Assert
             if (!socket.data.ok) return socket.disconnect(true)
 
+            // Get room
+            const room = store[socket.data.room]
+            if (!room) return emitError(`Room ${socket.data.room} not found ...`)
+
             // Emit init state
-            console.log('server', socket.data.id, 'emit', ServerEvents.INIT_STATE, config.debug ? room : HIDDEN)
-            socket.emit(ServerEvents.INIT_STATE, room)
+            emitInitState(room)
         } catch (e) {
             console.log(e)
         }
@@ -286,10 +305,29 @@ io.on('connection', socket => {
         }
     )
 
+    const limiter = new RateLimiter({tokensPerInterval: 30, interval: 60 * 500, fireImmediately: true})
+    async function limit() {
+        const remaining = await limiter.removeTokens(1)
+        console.log(remaining)
+        if (remaining > 0) return
+        emitError('Too many requests ...')
+    }
+
     function emitError(message: string, ack?: Ack): void {
         const emit = {message}
         console.log('server', socket.data.id, 'emit', ServerEvents.SHOW_NOTIFICATION, config.debug ? emit : HIDDEN)
         socket.emit(ServerEvents.SHOW_NOTIFICATION, emit, ack)
+    }
+
+    function emitInitState(room: InitState) {
+        const init: InitState = {
+            hidden: room.hidden,
+            users: room.users,
+            votes: room.hidden ? {} : room.votes,
+            voted: room.voted
+        }
+        console.log('server', socket.data.id, 'emit', ServerEvents.INIT_STATE, config.debug ? init : HIDDEN)
+        socket.emit(ServerEvents.INIT_STATE, init)
     }
 
     function closeRoom() {
@@ -321,7 +359,6 @@ io.listen(config.port)
 
 process.on('unhandledRejection', err => {
     console.log(err)
-    console.log(err.stack)
 })
 
 process.on('SIGINT', async () => {
