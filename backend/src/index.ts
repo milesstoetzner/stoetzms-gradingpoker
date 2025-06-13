@@ -64,7 +64,7 @@ io.on('connection', socket => {
 
                 // Init room
                 if (!store[data.room]) {
-                    store[data.room] = {hidden: true, users: [], votes: {}}
+                    store[data.room] = {hidden: true, users: [], votes: {}, voted: {}}
                 }
 
                 // Room
@@ -75,6 +75,7 @@ io.on('connection', socket => {
                     const seed = generateSeed()
                     room.users = seed.users
                     room.votes = seed.votes
+                    room.voted = seed.voted
                 }
 
                 // Check if another user with same name exists
@@ -97,8 +98,14 @@ io.on('connection', socket => {
                 socket.join(data.room)
 
                 // Emit init state
-                console.log('server', socket.data.id, 'emit', ServerEvents.INIT_STATE, config.debug ? room : HIDDEN)
-                socket.emit(ServerEvents.INIT_STATE, room)
+                const init: InitState = {
+                    hidden: room.hidden,
+                    users: room.users,
+                    votes: room.hidden ? {} : room.votes,
+                    voted: room.voted
+                }
+                console.log('server', socket.data.id, 'emit', ServerEvents.INIT_STATE, config.debug ? init : HIDDEN)
+                socket.emit(ServerEvents.INIT_STATE, init)
 
                 // Emit add user to room
                 console.log('server', socket.data.room, 'emit', ServerEvents.ADD_USER, config.debug ? user : HIDDEN)
@@ -118,7 +125,7 @@ io.on('connection', socket => {
 
     socket.on(
         ClientEvents.SET_VOTE,
-        (data: Omit<SetVote, 'user'>) => {
+        (data: SetVote) => {
             try {
                 console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.SET_VOTE)
 
@@ -130,11 +137,13 @@ io.on('connection', socket => {
                 const room = store[socket.data.room]
                 if (!room) return emitError(`Room ${socket.data.room} not found ...`)
                 room.votes[socket.data.user] = data.vote
+                room.voted[socket.data.user] = true
+
 
                 // Emit set vote to room
-                const emit = {user: socket.data.user, vote: data.vote}
-                console.log('server', socket.data.room, 'emit', ServerEvents.SET_VOTE, config.debug ? emit : HIDDEN)
-                socket.to(socket.data.room).emit(ServerEvents.SET_VOTE, emit)
+                const emit = {user: socket.data.user}
+                console.log('server', socket.data.room, 'emit', ServerEvents.SET_VOTED, config.debug ? emit : HIDDEN)
+                socket.to(socket.data.room).emit(ServerEvents.SET_VOTED, emit)
             } catch (e) {
                 console.log(e)
             }
@@ -155,9 +164,11 @@ io.on('connection', socket => {
                 if (!room) return emitError(`Room ${socket.data.room} not found ...`)
                 room.hidden = false
 
-                // Emit hide votes to room
-                console.log('server', socket.data.room, 'emit', ServerEvents.HIDE_VOTES)
-                socket.to(socket.data.room).emit(ServerEvents.SHOW_VOTES)
+                // Emit show votes to room
+                const data = room.votes
+                console.log('server', socket.data.room, 'emit', ServerEvents.SHOW_VOTES, config.debug ? data : HIDDEN)
+                socket.to(socket.data.room).emit(ServerEvents.SHOW_VOTES, data)
+                socket.emit(ServerEvents.SHOW_VOTES, data)
             } catch (e) {
                 console.log(e)
             }

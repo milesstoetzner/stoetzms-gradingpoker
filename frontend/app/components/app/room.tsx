@@ -23,7 +23,7 @@ import {
     Votes,
     Notification,
     Response,
-    HIDDEN, Ack,
+    HIDDEN, Ack, Voted, SetVoted,
 } from '../../../../spec/types'
 import Error from './error'
 import {useLocation, useNavigationType, useSearchParams} from '@remix-run/react'
@@ -107,6 +107,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
 
             setUsers(data.users)
             setVotes(data.votes)
+            setVoted(data.voted)
             setHidden(data.hidden)
 
             setVote(data.votes[props.user] ?? '')
@@ -126,28 +127,26 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
         socket.on(ServerEvents.REMOVE_USER, (data: RemoveUser) => {
             console.log('socket', id, 'on', ServerEvents.REMOVE_USER, debug ? data : HIDDEN)
             setUsers(prev => prev.filter(it => it.name !== data.user))
-            setVotes(prev => {
-                delete prev[data.user]
-                return {...prev}
-            })
         })
 
-        socket.on(ServerEvents.SET_VOTE, (data: SetVote) => {
-            console.log('socket', id, 'on', ServerEvents.SET_VOTE, debug ? data : HIDDEN)
-            setVotes(prev => {
-                prev[data.user] = data.vote
-                return {...prev}
-            })
-        })
-
-        socket.on(ServerEvents.SHOW_VOTES, () => {
-            console.log('socket', id, 'on', ServerEvents.SHOW_VOTES)
+        socket.on(ServerEvents.SHOW_VOTES, (data: Votes) => {
+            console.log('socket', id, 'on', ServerEvents.SHOW_VOTES, debug ? data : HIDDEN)
+            setVotes(data)
             setHidden(false)
+        })
+
+        socket.on(ServerEvents.SET_VOTED, (data: SetVoted) => {
+            console.log('socket', id, 'on', ServerEvents.SET_VOTED, debug ? data : HIDDEN)
+            setVoted(prev => {
+                prev[data.user] = true
+                return {...prev}
+            })
         })
 
         socket.on(ServerEvents.HIDE_VOTES, () => {
             console.log('socket', id, 'on', ServerEvents.HIDE_VOTES)
             setHidden(true)
+            setVotes({})
         })
 
         socket.on(ServerEvents.SHOW_NOTIFICATION, (data: Notification, ack?: Ack) => {
@@ -165,18 +164,21 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
     const [hidden, setHidden] = React.useState<boolean>(true)
     const [users, setUsers] = React.useState<User[]>([])
     const [votes, setVotes] = React.useState<Votes>({})
+    const [voted, setVoted] = React.useState<Voted>({})
     const [vote, setVote] = React.useState<string>('')
 
     function onVoteChange(vote: string) {
         onLocalHideVotes()
 
         setVote(vote)
+        setVoted(prev => {
+            prev[props.user] = true
+            return {...prev}
+        })
 
         const data = {vote}
         console.log('socket', socket.id, 'emit', ClientEvents.SET_VOTE, debug ? data : HIDDEN)
         socket.emit(ClientEvents.SET_VOTE, data)
-
-        setVotes({...votes, [props.user]: vote})
     }
 
     function onLocalShowVotes() {
@@ -187,6 +189,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
 
     function onLocalHideVotes() {
         setHidden(true)
+        setVotes({})
         console.log('socket', socket.id, 'emit', ClientEvents.HIDE_VOTES)
         socket.emit(ClientEvents.HIDE_VOTES)
     }
@@ -269,7 +272,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                             <TableCell>
                                                 {user.name === props.user ? (
                                                     <Ballot value={vote} onChange={onVoteChange} disabled={!connected}/>
-                                                ) : votes[user.name] ? (
+                                                ) : voted[user.name] ? (
                                                     hidden ? (
                                                         <Hidden/>
                                                     ) : (
@@ -290,12 +293,13 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                 type="submit"
                                 className="w-full"
                                 onClick={onLocalShowVotes}
-                                disabled={!Object.values(votes).length || !connected}
+                                disabled={!Object.values(voted).length || !connected}
                             >
                                 <Eye/> Show Votes
                             </Button>
 
-                            <Button type="submit" className="w-full" variant="secondary" onClick={onLocalHideVotes} disabled={!connected}>
+                            <Button type="submit" className="w-full" variant="secondary" onClick={onLocalHideVotes}
+                                    disabled={!connected}>
                                 <EyeOff/> Hide Votes
                             </Button>
 
@@ -325,7 +329,8 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                 </DialogContent>
                             </Dialog>
 
-                            <Button type="submit" className="w-full" onClick={onLocalBack} variant="secondary" disabled={!connected}>
+                            <Button type="submit" className="w-full" onClick={onLocalBack} variant="secondary"
+                                    disabled={!connected}>
                                 <CircleArrowLeft/> Leave Room
                             </Button>
                         </CardFooter>
@@ -374,6 +379,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                 hidden,
                                 users,
                                 votes,
+                                voted
                             },
                             null,
                             4

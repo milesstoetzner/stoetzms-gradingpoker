@@ -16,7 +16,7 @@ export enum ServerEvents {
     ADD_USER = 'add-user',
     REMOVE_USER = 'remove-user',
 
-    SET_VOTE = 'set-vote',
+    SET_VOTED = 'set-voted',
     SHOW_VOTES = 'show-votes',
     HIDE_VOTES = 'hide-votes',
 
@@ -36,14 +36,20 @@ export type InitState = {
     hidden: boolean
     users: User[]
     votes: Votes
+    voted: Voted
 }
 
 export type Votes = { [user: string]: string }
+export type Voted = { [user: string]: boolean }
 
 export type SetVote = {
-    user: string
     vote: string
 }
+
+export type SetVoted = {
+    user: string
+}
+
 
 export type AddUser = User
 
@@ -73,7 +79,7 @@ export interface ClientToServerEvents {
     [ClientEvents.INIT_STATE]: () => void;
     [ClientEvents.CLOSE_ROOM]: (ack: Ack) => void;
 
-    [ClientEvents.SET_VOTE]: (data: Omit<SetVote, 'user'>) => void;
+    [ClientEvents.SET_VOTE]: (data: SetVote) => void;
     [ClientEvents.SHOW_VOTES]: () => void;
     [ClientEvents.HIDE_VOTES]: () => void;
 
@@ -86,8 +92,8 @@ export interface ServerToClientEvents {
     [ServerEvents.ADD_USER]: (data: AddUser) => void;
     [ServerEvents.REMOVE_USER]: (data: RemoveUser) => void;
 
-    [ServerEvents.SET_VOTE]: (data: SetVote) => void;
-    [ServerEvents.SHOW_VOTES]: () => void;
+    [ServerEvents.SET_VOTED]: (data: SetVoted) => void;
+    [ServerEvents.SHOW_VOTES]: (data: Votes) => void;
     [ServerEvents.HIDE_VOTES]: () => void;
 
     [ServerEvents.SHOW_NOTIFICATION]: (data: Notification, ack?: Ack) => void;

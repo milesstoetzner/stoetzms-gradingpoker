@@ -27,5 +27,11 @@ export function generateSeed() {
         [users[3].name]: 'Withhold',
     }
 
-    return {users, votes}
+    const voted = {
+        [users[0].name]: true,
+        [users[1].name]: true,
+        [users[3].name]: true,
+    }
+
+    return {users, votes, voted}
 }

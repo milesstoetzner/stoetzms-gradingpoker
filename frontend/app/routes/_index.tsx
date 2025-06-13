@@ -14,6 +14,8 @@ export const meta: MetaFunction = () => {
 const KEY_ROOM = 'room'
 const KEY_USER = 'user'
 
+// TODO: for testing, also add username to query
+
 export default function Index() {
     const [searchParams, setSearchParams] = useSearchParams()
 
@@ -32,6 +34,7 @@ export default function Index() {
             setSearchParam(KEY_ROOM, room)
         }
     }, [room, searchParams, setSearchParams])
+
 
     function onRoomGenerate() {
         const generated = randomName()
@@ -56,6 +59,9 @@ export default function Index() {
     const [user, setUser] = React.useState<string>(getUser())
 
     function getUser() {
+        const param = searchParams.get(KEY_USER)
+        if (param && param !== '') return param
+
         const found = window.localStorage.getItem(KEY_USER)
         if (found) return found
 
