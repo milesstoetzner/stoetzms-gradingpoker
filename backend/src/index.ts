@@ -238,6 +238,7 @@ io.on('connection', socket => {
                     const room = store[socket.data.room]
                     if (!room) return
                     room.users = room.users.filter(it => it.name !== socket.data.user)
+                    delete room.votes[socket.data.user]
 
                     // Remove socket from room
                     socket.leave(socket.data.room)

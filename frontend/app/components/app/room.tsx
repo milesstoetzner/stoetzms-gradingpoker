@@ -80,9 +80,6 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
             console.log('socket', id, 'on', 'reconnect')
             setError(undefined)
 
-            // TODO: emit current vote?
-            setVote(undefined)
-
             console.log('socket', id, 'on', ClientEvents.INIT_STATE)
             socket.emit(ClientEvents.INIT_STATE)
         })
@@ -103,9 +100,12 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
 
         socket.on(ServerEvents.INIT_STATE, (data: InitState) => {
             console.log('socket', id, 'on', ServerEvents.INIT_STATE, debug ? data : HIDDEN)
+
             setUsers(data.users)
             setVotes(data.votes)
             setHidden(data.hidden)
+
+            setVote(data.votes[props.user] ?? '')
         })
 
         socket.on(ServerEvents.CLOSE_ROOM, () => {
@@ -161,7 +161,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
     const [hidden, setHidden] = React.useState<boolean>(true)
     const [users, setUsers] = React.useState<User[]>([])
     const [votes, setVotes] = React.useState<Votes>({})
-    const [vote, setVote] = React.useState<string | undefined>()
+    const [vote, setVote] = React.useState<string>('')
 
     function onVoteChange(vote: string) {
         onLocalHideVotes()

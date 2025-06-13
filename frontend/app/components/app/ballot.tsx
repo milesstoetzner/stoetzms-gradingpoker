@@ -1,7 +1,7 @@
 import {Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue} from '../ui/select'
 import React from 'react'
 
-export default function Ballot(props: {value: string | undefined, onChange: (value: string) => void}) {
+export default function Ballot(props: {value: string, onChange: (value: string) => void}) {
     return (
         <Select value={props.value} onValueChange={props.onChange}>
             <SelectTrigger className="w-[180px]">
