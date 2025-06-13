@@ -52,6 +52,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
         })
     )
 
+    const [connected, setConnected] = useState(false)
     const [joined, setJoined] = useState(false)
     const [error, setError] = useDebounce<string | undefined>(undefined, 500)
 
@@ -62,6 +63,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
         socket.on('connect', () => {
             id = socket.id!
             console.log('socket', id, 'on', 'connect')
+            setConnected(true)
             setError(undefined)
 
             socket.emit(ClientEvents.JOIN_ROOM, {
@@ -78,6 +80,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
         // TODO: will the socket id change?!
         socket.on(ServerEvents.RECONNECT, () => {
             console.log('socket', id, 'on', 'reconnect')
+            setConnected(true)
             setError(undefined)
 
             console.log('socket', id, 'on', ClientEvents.INIT_STATE)
@@ -86,6 +89,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
 
         socket.on('disconnect', reason => {
             console.log('socket', id, 'on', 'disconnect', reason)
+            setConnected(false)
 
             if (reason === 'io server disconnect') {
                 onLocalBack()
@@ -264,7 +268,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                             <TableCell>{user.name}</TableCell>
                                             <TableCell>
                                                 {user.name === props.user ? (
-                                                    <Ballot value={vote} onChange={onVoteChange}/>
+                                                    <Ballot value={vote} onChange={onVoteChange} disabled={!connected}/>
                                                 ) : votes[user.name] ? (
                                                     hidden ? (
                                                         <Hidden/>
@@ -286,18 +290,18 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                 type="submit"
                                 className="w-full"
                                 onClick={onLocalShowVotes}
-                                disabled={!Object.values(votes).length}
+                                disabled={!Object.values(votes).length || !connected}
                             >
                                 <Eye/> Show Votes
                             </Button>
 
-                            <Button type="submit" className="w-full" variant="secondary" onClick={onLocalHideVotes}>
+                            <Button type="submit" className="w-full" variant="secondary" onClick={onLocalHideVotes} disabled={!connected}>
                                 <EyeOff/> Hide Votes
                             </Button>
 
                             <Dialog>
                                 <DialogTrigger asChild>
-                                    <Button type="submit" className="w-full" variant="secondary">
+                                    <Button type="submit" className="w-full" variant="secondary" disabled={!connected}>
                                         <Trash2/> Close Room
                                     </Button>
                                 </DialogTrigger>
@@ -321,7 +325,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                 </DialogContent>
                             </Dialog>
 
-                            <Button type="submit" className="w-full" onClick={onLocalBack} variant="secondary">
+                            <Button type="submit" className="w-full" onClick={onLocalBack} variant="secondary" disabled={!connected}>
                                 <CircleArrowLeft/> Leave Room
                             </Button>
                         </CardFooter>
@@ -365,7 +369,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                         {JSON.stringify(
                             {
                                 debug,
-                                connected: socket.connected,
+                                connected,
                                 vote,
                                 hidden,
                                 users,
