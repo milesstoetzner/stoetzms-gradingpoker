@@ -39,6 +39,7 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '../ui/dialog'
+import {Badge} from "../ui/badge";
 
 export function RoomCard(props: { room: string; user: string; setProcess: (process: string) => void }) {
     const [searchParams, _] = useSearchParams()
@@ -268,7 +269,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                                     ></AvatarImage>
                                                 </Avatar>
                                             </TableCell>
-                                            <TableCell>{user.name}</TableCell>
+                                            <TableCell>{user.name} {user.name === props.user && <Badge className="ml-[0.5rem]" >me</Badge>} </TableCell>
                                             <TableCell>
                                                 {user.name === props.user ? (
                                                     <Ballot value={vote} onChange={onVoteChange} disabled={!connected}/>
