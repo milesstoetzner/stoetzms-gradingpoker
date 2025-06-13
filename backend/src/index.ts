@@ -1,7 +1,8 @@
 import {Server} from 'socket.io'
 import {
     Ack,
-    ClientEvents, ClientToServerEvents,
+    ClientEvents,
+    ClientToServerEvents,
     HIDDEN,
     InitState,
     JoinRoom,
@@ -205,6 +206,22 @@ io.on('connection', socket => {
             }
         }
     )
+
+    socket.on(ClientEvents.INIT_STATE, () => {
+        try {
+            console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.INIT_STATE, reason)
+
+            // Assert
+            if (!socket.data.ok) return socket.disconnect(true)
+
+            // Emit init state
+            console.log('server', socket.data.id, 'emit', ServerEvents.INIT_STATE, config.debug ? room : HIDDEN)
+            socket.emit(ServerEvents.INIT_STATE, room)
+        } catch (e) {
+            console.log(e)
+        }
+
+    })
 
     socket.on(
         'disconnect',

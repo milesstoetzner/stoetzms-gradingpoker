@@ -62,6 +62,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
         socket.on('connect', () => {
             id = socket.id!
             console.log('socket', id, 'on', 'connect')
+            setError(undefined)
 
             socket.emit(ClientEvents.JOIN_ROOM, {
                 user: props.user,
@@ -74,9 +75,16 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
             })
         })
 
+        // TODO: will the socket id change?!
         socket.on(ServerEvents.RECONNECT, () => {
             console.log('socket', id, 'on', 'reconnect')
             setError(undefined)
+
+            // TODO: emit current vote?
+            setVote(undefined)
+
+            console.log('socket', id, 'on', ClientEvents.INIT_STATE)
+            socket.emit(ClientEvents.INIT_STATE)
         })
 
         socket.on('disconnect', reason => {
@@ -153,9 +161,12 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
     const [hidden, setHidden] = React.useState<boolean>(true)
     const [users, setUsers] = React.useState<User[]>([])
     const [votes, setVotes] = React.useState<Votes>({})
+    const [vote, setVote] = React.useState<string | undefined>()
 
     function onVoteChange(vote: string) {
         onLocalHideVotes()
+
+        setVote(vote)
 
         const data = {vote}
         console.log('socket', socket.id, 'emit', ClientEvents.SET_VOTE, debug ? data : HIDDEN)
@@ -253,7 +264,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                             <TableCell>{user.name}</TableCell>
                                             <TableCell>
                                                 {user.name === props.user ? (
-                                                    <Ballot onChange={onVoteChange}/>
+                                                    <Ballot value={vote} onChange={onVoteChange}/>
                                                 ) : votes[user.name] ? (
                                                     hidden ? (
                                                         <Hidden/>
@@ -337,11 +348,25 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                     <br/>
                     <br/>
 
+                    <Button type="submit" className="w-full" onClick={() => {
+                        socket.connect()
+                    }} variant="secondary">
+                        Socket Connect
+                    </Button>
+
+                    <Button type="submit" className="w-full" onClick={() => {
+                        socket.disconnect()
+                    }} variant="secondary">
+                        Socket Disconnect
+                    </Button>
+
+
                     <pre>
                         {JSON.stringify(
                             {
                                 debug,
                                 connected: socket.connected,
+                                vote,
                                 hidden,
                                 users,
                                 votes,

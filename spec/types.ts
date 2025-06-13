@@ -1,5 +1,6 @@
 export enum ClientEvents {
     JOIN_ROOM = 'join-room',
+    INIT_STATE = 'init-state',
 
     SET_VOTE = 'set-vote',
     SHOW_VOTES = 'show-votes',
@@ -69,6 +70,7 @@ export const HIDDEN = '*******'
 
 export interface ClientToServerEvents {
     [ClientEvents.JOIN_ROOM]: (data: JoinRoom, ack: Ack) => void;
+    [ClientEvents.INIT_STATE]: () => void;
     [ClientEvents.CLOSE_ROOM]: (ack: Ack) => void;
 
     [ClientEvents.SET_VOTE]: (data: Omit<SetVote, 'user'>) => void;
