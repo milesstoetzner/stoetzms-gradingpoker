@@ -24,18 +24,20 @@ import * as config from './config'
 
 const store: { [room: string]: InitState } = {}
 
+// TODO: data handling is strange
+// TODO: migrate from socket.data to local variables?
+// TODO: persist this data in redis?
 type SocketData = {
     ok: true,
     id: string,
     room: string,
     user: string
-} | { ok: false, id: undefined, room: undefined, user: undefined }
+} | { ok: false, id: string, room: undefined, user: undefined }
 
 const io = new Server<ClientToServerEvents, ServerToClientEvents, {}, SocketData>({
-    path: '/socket.io',
+    path: config.path,
     cors: {
-        // TODO: restrict this
-        origin: '*',
+        origin: config.origin,
     },
     pingInterval: 2000,
     pingTimeout: 2000,
@@ -48,8 +50,6 @@ io.on('error', (err: Error) => {
 })
 
 io.on('connection', socket => {
-    // TODO: migrate from socket.data to local variables
-    // TODO: persist this data in redis?
     socket.data.id = socket.id
 
     console.log('socket', socket.data.id, 'on', 'connected')
@@ -58,7 +58,7 @@ io.on('connection', socket => {
         ClientEvents.JOIN_ROOM,
         (data: JoinRoom, ack: Ack) => {
             try {
-                console.log('socket', socket.id, 'on', ClientEvents.JOIN_ROOM, config.debug ? data : HIDDEN)
+                console.log('socket', socket.data.id, 'on', ClientEvents.JOIN_ROOM, config.debug ? data : HIDDEN)
 
                 // Init room
                 if (!store[data.room]) {
