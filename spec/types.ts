@@ -6,7 +6,6 @@ export enum ClientEvents {
     HIDE_VOTES = 'hide-votes',
 
     CLOSE_ROOM = 'close-room',
-
 }
 
 export enum ServerEvents {
@@ -75,6 +74,7 @@ export interface ClientToServerEvents {
     [ClientEvents.SET_VOTE]: (data: Omit<SetVote, 'user'>) => void;
     [ClientEvents.SHOW_VOTES]: () => void;
     [ClientEvents.HIDE_VOTES]: () => void;
+
 }
 
 export interface ServerToClientEvents {
