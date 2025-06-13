@@ -23,6 +23,7 @@ import * as config from './config'
 
 // TODO: health endpoint
 
+// TODO: persist store so that clients are not broken on restarts
 const store: { [room: string]: InitState } = {}
 
 // TODO: data handling is strange
