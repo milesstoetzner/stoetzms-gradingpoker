@@ -17,11 +17,7 @@ import * as config from './config'
 
 // TODO: clean up stale rooms, e.g., no activity since 1 week
 
-// TODO: gracefully stop
-
 // TODO: rate limiter
-
-// TODO: health endpoint
 
 // TODO: persist store so that clients are not broken on restarts
 const store: { [room: string]: InitState } = {}
@@ -45,8 +41,6 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, {}, SocketData
     pingTimeout: 2000,
 })
 
-// TODO: fix this typescript
-// @ts-ignore
 io.on('error', (err: Error) => {
     console.log('server', 'on', 'error', err)
 })
@@ -55,6 +49,11 @@ io.on('connection', socket => {
     socket.data.id = socket.id
 
     console.log('socket', socket.data.id, 'on', 'connected')
+
+    socket.on(ClientEvents.HEALTH, (ack: Ack) => {
+        console.log('socket', socket.data.id, 'on', ClientEvents.HEALTH)
+        ack({ok: true})
+    })
 
     socket.on(
         ClientEvents.JOIN_ROOM,
@@ -318,4 +317,19 @@ io.on('connection', socket => {
 
 })
 
-io.listen(3000)
+io.listen(config.port)
+
+process.on('unhandledRejection', err => {
+    console.log(err)
+    console.log(err.stack)
+})
+
+process.on('SIGINT', async () => {
+    try {
+        console.log('server', 'on', 'SIGNIT')
+        await io.close()
+    } catch (e) {
+        console.log(e)
+        process.exit(1)
+    }
+})

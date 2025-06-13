@@ -7,6 +7,8 @@ export enum ClientEvents {
     HIDE_VOTES = 'hide-votes',
 
     CLOSE_ROOM = 'close-room',
+
+    HEALTH = 'health',
 }
 
 export enum ServerEvents {
@@ -83,6 +85,7 @@ export interface ClientToServerEvents {
     [ClientEvents.SHOW_VOTES]: () => void;
     [ClientEvents.HIDE_VOTES]: () => void;
 
+    [ClientEvents.HEALTH]: (ack: Ack) => void;
 }
 
 export interface ServerToClientEvents {
