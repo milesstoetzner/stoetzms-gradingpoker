@@ -34,7 +34,7 @@ export type JoinRoom = {
     seed?: boolean
 }
 
-export type InitState = {
+export type Room = {
     hidden: boolean
     users: User[]
     votes: Votes
@@ -89,7 +89,7 @@ export interface ClientToServerEvents {
 }
 
 export interface ServerToClientEvents {
-    [ServerEvents.INIT_STATE]: (data: InitState) => void;
+    [ServerEvents.INIT_STATE]: (data: Room) => void;
     [ServerEvents.CLOSE_ROOM]: () => void;
 
     [ServerEvents.ADD_USER]: (data: AddUser) => void;

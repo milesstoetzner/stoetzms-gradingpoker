@@ -14,8 +14,6 @@ export const meta: MetaFunction = () => {
 const KEY_ROOM = 'room'
 const KEY_USER = 'user'
 
-// TODO: for testing, also add username to query
-
 export default function Index() {
     const [searchParams, setSearchParams] = useSearchParams()
 

@@ -15,6 +15,9 @@ type Distribution = {
     absolute: number
 }
 
+
+// TODO: show discussees
+
 export function ResultContent(props: {votes: Votes}) {
     const values = Object.values(props.votes)
     const strings = values.filter(it => it !== null && it !== undefined && it !== '').map(it => String(it))

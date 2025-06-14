@@ -14,11 +14,10 @@ import {
     AddUser,
     ClientEvents,
     ClientToServerEvents,
-    InitState,
+    Room,
     RemoveUser,
     ServerEvents,
     ServerToClientEvents,
-    SetVote,
     User,
     Votes,
     Notification,
@@ -103,7 +102,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
             console.log('socket', id, 'on', 'connect_error', error)
         })
 
-        socket.on(ServerEvents.INIT_STATE, (data: InitState) => {
+        socket.on(ServerEvents.INIT_STATE, (data: Room) => {
             console.log('socket', id, 'on', ServerEvents.INIT_STATE, debug ? data : HIDDEN)
 
             setUsers(data.users)

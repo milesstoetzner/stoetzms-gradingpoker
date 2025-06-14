@@ -14,3 +14,7 @@ services:
     restart: unless-stopped
     ports:
       - '3000:3000'
+
+  redis:
+    image: redis:8.0
+    restart: unless-stopped

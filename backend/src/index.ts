@@ -4,7 +4,7 @@ import {
     ClientEvents,
     ClientToServerEvents,
     HIDDEN,
-    InitState,
+    Room,
     JoinRoom,
     ServerEvents,
     ServerToClientEvents,
@@ -19,11 +19,8 @@ import {RateLimiter} from "limiter";
 
 // TODO: clean up stale rooms, e.g., no activity since 1 week
 // TODO: persist store so that clients are not broken on restarts
-const store: { [room: string]: InitState } = {}
+const store: { [room: string]: Room } = {}
 
-// TODO: data handling is strange
-// TODO: migrate from socket.data to local variables?
-// TODO: persist this data in redis?
 type SocketData = {
     ok: true,
     id: string,
@@ -319,8 +316,8 @@ io.on('connection', socket => {
         socket.emit(ServerEvents.SHOW_NOTIFICATION, emit, ack)
     }
 
-    function emitInitState(room: InitState) {
-        const init: InitState = {
+    function emitInitState(room: Room) {
+        const init: Room = {
             hidden: room.hidden,
             users: room.users,
             votes: room.hidden ? {} : room.votes,
