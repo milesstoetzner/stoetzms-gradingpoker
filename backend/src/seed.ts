@@ -2,6 +2,8 @@ import {generateAvatar} from './utils'
 import randomName from '@scaleway/random-name'
 
 export function generateSeed() {
+    const hidden = true
+
     const users = [
         {
             name: randomName(),
@@ -33,5 +35,5 @@ export function generateSeed() {
         [users[3].name]: true,
     }
 
-    return {users, votes, voted}
+    return {hidden, users, votes, voted}
 }

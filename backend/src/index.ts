@@ -15,11 +15,8 @@ import {generateAvatar} from './utils'
 import {generateSeed} from './seed'
 import * as config from './config'
 import {RateLimiter} from "limiter";
+import * as persistency from './persistency'
 
-
-// TODO: clean up stale rooms, e.g., no activity since 1 week
-// TODO: persist store so that clients are not broken on restarts
-const store: { [room: string]: Room } = {}
 
 type SocketData = {
     ok: true,
@@ -47,9 +44,17 @@ io.on('connection', socket => {
 
     console.log('socket', socket.data.id, 'on', 'connected')
 
-    socket.on(ClientEvents.HEALTH, (ack: Ack) => {
-        console.log('socket', socket.data.id, 'on', ClientEvents.HEALTH)
-        ack({ok: true})
+    socket.on(ClientEvents.HEALTH, async (ack: Ack) => {
+        try {
+            console.log('socket', socket.data.id, 'on', ClientEvents.HEALTH)
+
+            const server = true
+            const data = await persistency.health()
+
+            ack({ok: server && data})
+        } catch (e) {
+            handleUnexpected(e)
+        }
     })
 
     socket.on(
@@ -61,40 +66,34 @@ io.on('connection', socket => {
                 // Limit
                 await limit()
 
-                // Init room
-                if (!store[data.room]) {
-                    store[data.room] = {hidden: true, users: [], votes: {}, voted: {}}
-                }
-
-                // Room
-                const room = store[data.room]
-
-                // Seed
-                if (data.seed) {
-                    const seed = generateSeed()
-                    room.users = seed.users
-                    room.votes = seed.votes
-                    room.voted = seed.voted
-                }
+                // Assert room
+                const exists = await persistency.hasRoom(data.room)
+                if (!exists) await persistency.addRoom(data.room, data.seed ? generateSeed() : undefined)
 
                 // Check if another user with same name exists
-                const found = room.users.find(it => it.name === data.user)
-                if (found) return emitError(`User ${data.user} already exists ...`, () => socket.disconnect(true))
+                const collision = await persistency.hasUser(data.room, data.user)
+                if (collision) return emitError(`User ${data.user} already exists ...`, () => socket.disconnect(true))
 
                 // Init metadata
                 socket.data.ok = true
                 socket.data.user = data.user
                 socket.data.room = data.room
 
-                // Add user to room
+                // New user
                 const user: User = {
                     name: socket.data.user,
                     avatar: generateAvatar(),
                 }
-                room.users.push(user)
-                room.hidden = true
 
-                socket.join(data.room)
+                // Update state
+                await persistency.addUser(socket.data.room, user.name, user.avatar)
+                await persistency.setHidden(socket.data.room, true)
+
+                // Join broadcast
+                socket.join(socket.data.room)
+
+                // Fetch room
+                const room = await persistency.getRoom(data.room)
 
                 // Emit init state
                 emitInitState(room)
@@ -110,7 +109,7 @@ io.on('connection', socket => {
                 // Emit ack
                 ack({ok: true})
             } catch (e) {
-                console.log(e)
+                handleUnexpected(e)
             }
         }
     )
@@ -124,23 +123,21 @@ io.on('connection', socket => {
                 // Limit
                 await limit()
 
-                // Assert
+                // Assert socket
                 if (!socket.data.ok) return socket.disconnect(true)
 
-                // Get room
-                const room = store[socket.data.room]
-                if (!room) return emitError(`Room ${socket.data.room} not found ...`)
+                // Assert room
+                await persistency.hasRoom(socket.data.room)
 
                 // Update state
-                room.votes[socket.data.user] = data.vote
-                room.voted[socket.data.user] = true
+                await persistency.setVote(socket.data.room, socket.data.user, data.vote)
 
                 // Emit set vote to room
                 const emit = {user: socket.data.user}
                 console.log('server', socket.data.room, 'emit', ServerEvents.SET_VOTED, config.debug ? emit : HIDDEN)
                 socket.to(socket.data.room).emit(ServerEvents.SET_VOTED, emit)
             } catch (e) {
-                console.log(e)
+                handleUnexpected(e)
             }
         }
     )
@@ -157,20 +154,21 @@ io.on('connection', socket => {
                 // Assert
                 if (!socket.data.ok) return socket.disconnect(true)
 
-                // Get room
-                const room = store[socket.data.room]
-                if (!room) return emitError(`Room ${socket.data.room} not found ...`)
+                // Assert room
+                await persistency.hasRoom(socket.data.room)
 
                 // Update state
-                room.hidden = false
+                await persistency.setHidden(socket.data.room, false)
+
+                // Fetch votes
+                const data = await persistency.getVotes(socket.data.room)
 
                 // Emit show votes to room
-                const data = room.votes
                 console.log('server', socket.data.room, 'emit', ServerEvents.SHOW_VOTES, config.debug ? data : HIDDEN)
                 socket.to(socket.data.room).emit(ServerEvents.SHOW_VOTES, data)
                 socket.emit(ServerEvents.SHOW_VOTES, data)
             } catch (e) {
-                console.log(e)
+                handleUnexpected(e)
             }
         }
     )
@@ -187,18 +185,17 @@ io.on('connection', socket => {
                 // Assert
                 if (!socket.data.ok) return socket.disconnect(true)
 
-                // Get room
-                const room = store[socket.data.room]
-                if (!room) return emitError(`Room ${socket.data.room} not found ...`)
+                // Assert room
+                await persistency.hasRoom(socket.data.room)
 
                 // Update state
-                room.hidden = true
+                await persistency.setHidden(socket.data.room, true)
 
                 // Emit hide votes to room
                 console.log('server', socket.data.room, 'emit', ServerEvents.HIDE_VOTES)
                 socket.to(socket.data.room).emit(ServerEvents.HIDE_VOTES)
             } catch (e) {
-                console.log(e)
+                handleUnexpected(e)
             }
         }
     )
@@ -207,12 +204,10 @@ io.on('connection', socket => {
         ClientEvents.CLOSE_ROOM,
         async (ack: Ack) => {
             try {
-
                 console.log(socket.data.id, socket.data.room, 'on', ClientEvents.CLOSE_ROOM)
 
                 // Limit
                 await limit()
-
 
                 // Assert
                 if (!socket.data.ok) return socket.disconnect(true)
@@ -221,9 +216,9 @@ io.on('connection', socket => {
                 ack({ok: true})
 
                 // Close room
-                closeRoom()
+                await closeRoom()
             } catch (e) {
-                console.log(e)
+                handleUnexpected(e)
             }
         }
     )
@@ -238,21 +233,23 @@ io.on('connection', socket => {
             // Assert
             if (!socket.data.ok) return socket.disconnect(true)
 
+            // Assert room
+            await persistency.hasRoom(socket.data.room)
+
             // Get room
-            const room = store[socket.data.room]
-            if (!room) return emitError(`Room ${socket.data.room} not found ...`)
+            const room = await persistency.getRoom(socket.data.room)
 
             // Emit init state
             emitInitState(room)
         } catch (e) {
-            console.log(e)
+            handleUnexpected(e)
         }
 
     })
 
     socket.on(
         'disconnect',
-        reason => {
+        async (reason) => {
             try {
                 console.log('socket', socket.data.id, socket.data.room, 'on', 'disconnected', reason)
 
@@ -261,32 +258,25 @@ io.on('connection', socket => {
 
                 if (socket.data.room) {
                     // Update state
-                    const room = store[socket.data.room]
-                    if (!room) return
-                    room.users = room.users.filter(it => it.name !== socket.data.user)
-                    delete room.votes[socket.data.user]
+                    await persistency.removeUser(socket.data.room, socket.data.user)
+                    await persistency.removeVote(socket.data.room, socket.data.user)
 
-                    // Remove socket from room
+                    // Remove socket from broadcast
                     socket.leave(socket.data.room)
 
-                    if (!room.users.length) {
-                        // Close room
-                        closeRoom()
-                    } else {
-                        // Emit remove user to room
-                        const emit = {user: socket.data.user}
-                        console.log(
-                            'server',
-                            socket.data.room,
-                            'emit',
-                            ServerEvents.REMOVE_USER,
-                            config.debug ? emit : HIDDEN
-                        )
-                        socket.to(socket.data.room).emit(ServerEvents.REMOVE_USER, emit)
-                    }
+                    // Emit remove user to room
+                    const emit = {user: socket.data.user}
+                    console.log(
+                        'server',
+                        socket.data.room,
+                        'emit',
+                        ServerEvents.REMOVE_USER,
+                        config.debug ? emit : HIDDEN
+                    )
+                    socket.to(socket.data.room).emit(ServerEvents.REMOVE_USER, emit)
                 }
             } catch (e) {
-                console.log(e)
+                handleUnexpected(e)
             }
         }
     )
@@ -297,15 +287,15 @@ io.on('connection', socket => {
             try {
                 console.log(socket.data.id, socket.data.room, 'on', 'error', error)
             } catch (e) {
-                console.log(e)
+                handleUnexpected(e)
             }
         }
     )
 
     const limiter = new RateLimiter({tokensPerInterval: 30, interval: 60 * 500, fireImmediately: true})
+
     async function limit() {
         const remaining = await limiter.removeTokens(1)
-        console.log(remaining)
         if (remaining > 0) return
         emitError('Too many requests ...')
     }
@@ -314,6 +304,16 @@ io.on('connection', socket => {
         const emit = {message}
         console.log('server', socket.data.id, 'emit', ServerEvents.SHOW_NOTIFICATION, config.debug ? emit : HIDDEN)
         socket.emit(ServerEvents.SHOW_NOTIFICATION, emit, ack)
+    }
+
+    function handleUnexpected(error: unknown) {
+        console.log(error)
+
+        if (socket.connected) {
+            const emit = {message: 'Unexpected error on the server ...'}
+            console.log('server', socket.data.id, 'emit', ServerEvents.SHOW_NOTIFICATION, config.debug ? emit : HIDDEN)
+            socket.emit(ServerEvents.SHOW_NOTIFICATION, emit)
+        }
     }
 
     function emitInitState(room: Room) {
@@ -327,12 +327,12 @@ io.on('connection', socket => {
         socket.emit(ServerEvents.INIT_STATE, init)
     }
 
-    function closeRoom() {
+    async function closeRoom() {
         // Assert
         if (!socket.data.ok) return socket.disconnect(true)
 
         // Update state
-        delete store[socket.data.room]
+        await persistency.deleteRoom(socket.data.room)
 
         // Emit close room to room
         console.log('server', socket.data.room, 'emit', ServerEvents.CLOSE_ROOM)
@@ -345,7 +345,7 @@ io.on('connection', socket => {
                 const other = io.sockets.sockets.get(id)
                 if (other) other.disconnect(true)
             } catch (e) {
-                console.log(e)
+                handleUnexpected(e)
             }
         })
     }

@@ -18,3 +18,10 @@ services:
   redis:
     image: redis:8.0
     restart: unless-stopped
+
+  redisinsight:
+    image: redis/redisinsight:2.70
+    environment:
+      RI_REDIS_HOST: redis
+    ports:
+      - '5540:5540'

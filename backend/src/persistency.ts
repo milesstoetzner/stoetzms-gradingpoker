@@ -2,56 +2,97 @@ import Redis from "ioredis";
 import {Room} from "../../spec/types";
 import * as config from "./config";
 
+// TODO: clean up stale rooms, e.g., no activity since 1 week.
+
+// TODO: transaction?
+
 const redis = new Redis({
     host: config.redis
 })
 
-
 export async function health() {
-    await redis.ping()
+    try {
+        await redis.ping()
+        return true
+    } catch (e) {
+        console.log(e)
+        return false
+    }
 }
 
 export async function setHidden(room: string, hidden: boolean) {
-    await redis.set(concat('room', room, 'hidden'), String(hidden))
+    await redis.set(concatHiddenKey(room), String(hidden))
+}
+
+export async function hasUser(room: string, user: string) {
+    return await redis.exists(concatUserKey(room, user)) > 0
 }
 
 export async function addUser(room: string, user: string, avatar: string) {
-    await redis.set(concat('room', room, 'users', user), avatar)
+    await redis.set(concatUserKey(room, user), avatar)
 }
 
-export async function removeUsers(room: string, user: string) {
-    await redis.del(concat('room', room, 'user', user))
+export async function removeUser(room: string, user: string) {
+    await redis.del(concatUserKey(room, user))
 }
 
 export async function setVote(room: string, user: string, vote: string) {
     const transaction = redis.multi()
 
-    transaction.set(concat('room', room, 'users', user), "true")
-    transaction.set(concat('room', room, 'users', user), vote)
+    transaction.set(concatVotedKey(room, user), "true")
+    transaction.set(concatVoteKey(room, user), vote)
 
     await transaction.exec()
 }
 
+export async function removeVote(room: string, user: string) {
+    redis.del(concatVotedKey(room, user), concatVoteKey(room, user))
+}
 
-// TODO: transaction?
+export async function hasRoom(room: string) {
+    return await redis.exists(concatHiddenKey(room)) > 0
+}
+
+// TODO: seed
+export async function addRoom(room: string, seed?: Room) {
+    await setHidden(room, true)
+}
+
 export async function getRoom(room: string): Promise<Room> {
-    const users = await collect(concat('room', room, 'users'), String)
-    return {
-        hidden: await redis.get(concat('room', room, 'hidden')) === "true",
-        users: Object.entries(users).map(([name, avatar]) => ({name, avatar})),
-        votes: await collect(concat('room', room, 'votes'), String),
-        voted: await collect(concat('room', room, 'voted'), Boolean),
+    const data: Room = {
+        hidden: await redis.get(concatHiddenKey(room)) === "true",
+        users: Object.entries(await collect(concatUserKey(room, any), String)).map(([name, avatar]) => ({
+            name,
+            avatar
+        })),
+        votes: await getVotes(room),
+        voted: await collect(concatVotedKey(room, any), Boolean),
     }
+
+    if (Object.keys(data.votes).length !== Object.keys(data.voted).length) {
+        throw new Error(`Room ${room} is missing votes ...`)
+    }
+
+    if (Object.keys(data.users).length < Object.keys(data.voted).length) {
+        throw new Error(`Room ${room} is missing users ...`)
+    }
+
+    return data
+}
+
+export async function getVotes(room: string) {
+    return await collect(concatVoteKey(room, any), String)
 }
 
 async function collect<T>(pattern: string, transform: (it: string) => T): Promise<{ [key: string]: T }> {
     return new Promise((resolve, reject) => {
         const keys: string[] = []
         const stream = redis.scanStream({match: pattern})
-        stream.on('data', (found) => keys.push(found))
+        stream.on('data', (found) => keys.push(...found))
         stream.on('error', reject)
         stream.on("end", async () => {
             const result: { [keys: string]: T } = {}
+            if (!keys.length) return resolve(result)
             const values = await redis.mget(keys)
             for (let i = 0; i < keys.length; i++) {
                 const key = keys[i]
@@ -64,11 +105,11 @@ async function collect<T>(pattern: string, transform: (it: string) => T): Promis
     })
 }
 
-export async function closeRoom(room: string) {
+export async function deleteRoom(room: string) {
     return new Promise((resolve, reject) => {
         const collected: string[] = []
         const stream = redis.scanStream({match: concat("room", room, "*")})
-        stream.on('data', (keys) => collected.push(keys))
+        stream.on('data', (keys) => collected.push(...keys))
         stream.on('error', reject)
         stream.on("end", async () => {
             await redis.del(collected)
@@ -86,3 +127,20 @@ function concat(...data: string[]) {
     return data.join(':')
 }
 
+function concatUserKey(room: string, user: string) {
+    return concat('room', room, 'user', user)
+}
+
+function concatVotedKey(room: string, user: string) {
+    return concat('room', room, 'voted', user)
+}
+
+function concatVoteKey(room: string, user: string) {
+    return concat('room', room, 'vote', user)
+}
+
+function concatHiddenKey(room: string) {
+    return concat('room', room, 'hidden')
+}
+
+const any = '*'

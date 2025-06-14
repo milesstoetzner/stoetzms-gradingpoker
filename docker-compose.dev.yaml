@@ -28,3 +28,10 @@ services:
     image: redis:8.0
     ports:
       - '6379:6379'
+
+  redisinsight:
+    image: redis/redisinsight:2.70
+    environment:
+      RI_REDIS_HOST: redis
+    ports:
+      - '5540:5540'
