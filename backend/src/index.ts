@@ -21,9 +21,10 @@ import * as persistency from './persistency'
 type SocketData = {
     ok: true,
     id: string,
-    room: string,
     user: string
-} | { ok: false, id: string, room: undefined, user: undefined }
+    room: string
+    avatar: string
+} | { ok: false, id: string, room?: never, user?: never, avatar?: never }
 
 const io = new Server<ClientToServerEvents, ServerToClientEvents, {}, SocketData>({
     path: config.path,
@@ -74,16 +75,17 @@ io.on('connection', socket => {
                 const collision = await persistency.hasUser(data.room, data.user)
                 if (collision) return emitError(`User ${data.user} already exists ...`, () => socket.disconnect(true))
 
+                // New user
+                const user: User = {
+                    name: data.user,
+                    avatar: generateAvatar(),
+                }
+
                 // Init metadata
                 socket.data.ok = true
                 socket.data.user = data.user
                 socket.data.room = data.room
-
-                // New user
-                const user: User = {
-                    name: socket.data.user,
-                    avatar: generateAvatar(),
-                }
+                socket.data.avatar = user.avatar
 
                 // Update state
                 await persistency.addUser(socket.data.room, user.name, user.avatar)
@@ -275,6 +277,13 @@ io.on('connection', socket => {
                     )
                     socket.to(socket.data.room).emit(ServerEvents.REMOVE_USER, emit)
                 }
+
+                // Reset data
+                socket.data = {
+                    ok: false,
+                    id: socket.data.id,
+                }
+
             } catch (e) {
                 handleUnexpected(e)
             }

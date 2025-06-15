@@ -4,7 +4,7 @@ import * as config from "./config";
 
 // TODO: clean up stale rooms, e.g., no activity since 1 week.
 
-// TODO: transaction?
+// TODO: transaction? locks in index.ts?
 
 const redis = new Redis({
     host: config.redis
