@@ -41,7 +41,7 @@ export async function setVote(room: string, user: string, vote: string) {
 }
 
 export async function removeVote(room: string, user: string) {
-    await redis.del(concatVotedKey(room, user), concatVoteKey(room, user))
+    await redis.del(concatVoteKey(room, user))
 }
 
 export async function hasRoom(room: string) {
@@ -132,10 +132,6 @@ function concat(...data: string[]) {
 
 function concatUserKey(room: string, user: string) {
     return concat('room', room, 'user', user)
-}
-
-function concatVotedKey(room: string, user: string) {
-    return concat('room', room, 'voted', user)
 }
 
 function concatVoteKey(room: string, user: string) {
