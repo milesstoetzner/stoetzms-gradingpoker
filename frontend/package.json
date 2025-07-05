@@ -1,5 +1,5 @@
 {
-    "name": "stoetzms-planningpoker-frontend",
+    "name": "stoetzms-gradingpoker-frontend",
     "private": true,
     "sideEffects": false,
     "type": "module",

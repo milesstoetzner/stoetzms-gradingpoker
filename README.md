@@ -1,3 +1,3 @@
-# planningpoker.stoetz.ms
+# gradingpoker.stoetz.ms
 
-- https://github.com/milesstoetzner/stoetzms-planningpoker
+- https://github.com/milesstoetzner/stoetzms-gradingpoker

@@ -20,7 +20,7 @@ export function JoinCard(props: {
     return (
         <Card className="w-full max-w-sm shadow-none">
             <CardHeader className="mb-4">
-                <CardTitle>planningpoker.stoetz.ms</CardTitle>
+                <CardTitle>gradingpoker.stoetz.ms</CardTitle>
             </CardHeader>
             <CardContent>
                 <div className="flex flex-col gap-6">

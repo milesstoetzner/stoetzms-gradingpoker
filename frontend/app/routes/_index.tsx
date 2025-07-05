@@ -8,7 +8,7 @@ import {Toaster} from '../components/ui/sonner'
 import {useSearchParams} from '@remix-run/react'
 
 export const meta: MetaFunction = () => {
-    return [{title: 'planningpoker.stoetz.ms'}, {name: 'description', content: 'Welcome to planningpoker.stoetz.ms!'}]
+    return [{title: 'gradingpoker.stoetz.ms'}, {name: 'description', content: 'Welcome to gradingpoker.stoetz.ms!'}]
 }
 
 const KEY_ROOM = 'room'

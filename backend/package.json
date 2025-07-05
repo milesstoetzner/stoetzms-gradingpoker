@@ -1,5 +1,5 @@
 {
-    "name": "stoetzms-planningpoker-backend",
+    "name": "stoetzms-gradingpoker-backend",
     "private": true,
     "main": "./build/index.js",
     "type": "module",
