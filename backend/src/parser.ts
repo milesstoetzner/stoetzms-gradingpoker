@@ -1,5 +1,5 @@
 import * as z from "zod/v4";
-import {JoinRoom, SetVote} from "../../spec/types";
+import {Ack, JoinRoom, SetVote} from "../../spec/types";
 
 const _joinRoom = z.object({
     room:  z.string(),
@@ -17,4 +17,9 @@ const _setVote = z.object({
 
 export function setVote(input: any): SetVote {
     return _setVote.parse(input)
+}
+
+export function ack(input: any): input is Ack {
+    if (typeof input !== "function") throw new Error(`${input} is not a function`)
+    return true
 }

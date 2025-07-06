@@ -64,6 +64,7 @@ io.on('connection', socket => {
             try {
                 console.log('socket', socket.data.id, 'on', ClientEvents.JOIN_ROOM, config.debug ? input : HIDDEN)
                 const data = parser.joinRoom(input)
+                parser.ack(ack)
 
                 // Limit
                 await limit()
@@ -119,10 +120,11 @@ io.on('connection', socket => {
 
     socket.on(
         ClientEvents.SET_VOTE,
-        async (input: SetVote) => {
+        async (input: SetVote, ack: Ack) => {
             try {
                 console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.SET_VOTE, config.debug ? input : HIDDEN)
                 const data = parser.setVote(input)
+                parser.ack(ack)
 
                 // Limit
                 await limit()
@@ -140,6 +142,9 @@ io.on('connection', socket => {
                 const emit = {user: socket.data.user}
                 console.log('server', socket.data.room, 'emit', ServerEvents.SET_VOTED, config.debug ? emit : HIDDEN)
                 socket.to(socket.data.room).emit(ServerEvents.SET_VOTED, emit)
+
+                // Emit ack
+                ack({ok: true})
             } catch (e) {
                 handleUnexpected(e)
             }
@@ -148,9 +153,10 @@ io.on('connection', socket => {
 
     socket.on(
         ClientEvents.SHOW_VOTES,
-        async () => {
+        async (ack: Ack) => {
             try {
                 console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.SHOW_VOTES)
+                parser.ack(ack)
 
                 // Limit
                 await limit()
@@ -171,6 +177,9 @@ io.on('connection', socket => {
                 console.log('server', socket.data.room, 'emit', ServerEvents.SHOW_VOTES, config.debug ? data : HIDDEN)
                 socket.to(socket.data.room).emit(ServerEvents.SHOW_VOTES, data)
                 socket.emit(ServerEvents.SHOW_VOTES, data)
+
+                // Emit ack
+                ack({ok: true})
             } catch (e) {
                 handleUnexpected(e)
             }
@@ -179,9 +188,10 @@ io.on('connection', socket => {
 
     socket.on(
         ClientEvents.HIDE_VOTES,
-        async () => {
+        async (ack: Ack) => {
             try {
                 console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.HIDE_VOTES)
+                parser.ack(ack)
 
                 // Limit
                 await limit()
@@ -198,6 +208,9 @@ io.on('connection', socket => {
                 // Emit hide votes to room
                 console.log('server', socket.data.room, 'emit', ServerEvents.HIDE_VOTES)
                 socket.to(socket.data.room).emit(ServerEvents.HIDE_VOTES)
+
+                // Emit ack
+                ack({ok: true})
             } catch (e) {
                 handleUnexpected(e)
             }
@@ -209,6 +222,7 @@ io.on('connection', socket => {
         async (ack: Ack) => {
             try {
                 console.log(socket.data.id, socket.data.room, 'on', ClientEvents.CLOSE_ROOM)
+                parser.ack(ack)
 
                 // Limit
                 await limit()
@@ -227,9 +241,10 @@ io.on('connection', socket => {
         }
     )
 
-    socket.on(ClientEvents.INIT_STATE, async () => {
+    socket.on(ClientEvents.INIT_STATE, async (ack: Ack) => {
         try {
             console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.INIT_STATE)
+            parser.ack(ack)
 
             // Limit
             await limit()
@@ -245,6 +260,9 @@ io.on('connection', socket => {
 
             // Emit init state
             emitInitState(room)
+
+            // Emit ack
+            ack({ok: true})
         } catch (e) {
             handleUnexpected(e)
         }

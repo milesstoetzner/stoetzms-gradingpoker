@@ -84,7 +84,9 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
             setError(undefined)
 
             console.log('socket', id, 'on', ClientEvents.INIT_STATE)
-            socket.emit(ClientEvents.INIT_STATE)
+            socket.emit(ClientEvents.INIT_STATE, (data: Response) => {
+                console.log('socket', socket.id, 'ack', ClientEvents.INIT_STATE, data)
+            })
         })
 
         socket.on('disconnect', reason => {
@@ -178,20 +180,26 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
 
         const data = {vote}
         console.log('socket', socket.id, 'emit', ClientEvents.SET_VOTE, debug ? data : HIDDEN)
-        socket.emit(ClientEvents.SET_VOTE, data)
+        socket.emit(ClientEvents.SET_VOTE, data, (data: Response) => {
+            console.log('socket', socket.id, 'ack', ClientEvents.SET_VOTE, data)
+        })
     }
 
     function onLocalShowVotes() {
         setHidden(false)
         console.log('socket', socket.id, 'emit', ClientEvents.SHOW_VOTES)
-        socket.emit(ClientEvents.SHOW_VOTES)
+        socket.emit(ClientEvents.SHOW_VOTES,  (data: Response) => {
+            console.log('socket', socket.id, 'ack', ClientEvents.SHOW_VOTES, data)
+        })
     }
 
     function onLocalHideVotes() {
         setHidden(true)
         setVotes({})
         console.log('socket', socket.id, 'emit', ClientEvents.HIDE_VOTES)
-        socket.emit(ClientEvents.HIDE_VOTES)
+        socket.emit(ClientEvents.HIDE_VOTES, (data: Response) => {
+            console.log('socket', socket.id, 'ack', ClientEvents.HIDE_VOTES, data)
+        })
     }
 
     function onLocalBack() {

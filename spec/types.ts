@@ -77,12 +77,12 @@ export const HIDDEN = '*******'
 
 export interface ClientToServerEvents {
     [ClientEvents.JOIN_ROOM]: (data: JoinRoom, ack: Ack) => void;
-    [ClientEvents.INIT_STATE]: () => void;
+    [ClientEvents.INIT_STATE]: (ack: Ack) => void;
     [ClientEvents.CLOSE_ROOM]: (ack: Ack) => void;
 
-    [ClientEvents.SET_VOTE]: (data: SetVote) => void;
-    [ClientEvents.SHOW_VOTES]: () => void;
-    [ClientEvents.HIDE_VOTES]: () => void;
+    [ClientEvents.SET_VOTE]: (data: SetVote, ack: Ack) => void;
+    [ClientEvents.SHOW_VOTES]: (ack: Ack) => void;
+    [ClientEvents.HIDE_VOTES]: (ack: Ack) => void;
 
     [ClientEvents.HEALTH]: (ack: Ack) => void;
 }
