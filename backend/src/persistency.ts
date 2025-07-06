@@ -16,7 +16,7 @@ export async function lock(room: string): Promise<Lock> {
 }
 
 export type Lock = {
-    release(): void
+    release(): Promise<void> | void
 }
 
 export async function health() {
@@ -57,10 +57,20 @@ export async function hasRoom(room: string) {
     return exists(concatHiddenKey(room))
 }
 
-
-// TODO: seed
 export async function addRoom(room: string, seed?: Room) {
-    await setHidden(room, true)
+    await setHidden(room,  true)
+
+    if (seed) {
+        await setHidden(room,  seed.hidden)
+
+        for (const user of seed.users) {
+            await addUser(room, user.name, user.avatar)
+        }
+
+        for (const [user, vote] of Object.entries(seed.votes)) {
+            await setVote(room, user, vote)
+        }
+    }
 }
 
 export async function getRoom(room: string): Promise<Room> {

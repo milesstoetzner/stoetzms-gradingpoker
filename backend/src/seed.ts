@@ -29,11 +29,9 @@ export function generateSeed() {
         [users[3].name]: 'Withhold',
     }
 
-    const voted = {
-        [users[0].name]: true,
-        [users[1].name]: true,
-        [users[3].name]: true,
-    }
+    const voted = Object.fromEntries(
+        Object.keys(votes).map(name => [name, true])
+    )
 
     return {hidden, users, votes, voted}
 }
