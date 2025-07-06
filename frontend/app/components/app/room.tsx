@@ -77,7 +77,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
             })
         })
 
-        // TODO: will the socket id change?!
+        // TODO: will the socket id change?! is this event even needed?
         socket.on(ServerEvents.RECONNECT, () => {
             console.log('socket', id, 'on', 'reconnect')
             setConnected(true)

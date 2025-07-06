@@ -3,8 +3,6 @@ import {Room, Votes} from "../../spec/types";
 import * as config from "./config";
 import {Mutex, MutexInterface, withTimeout} from 'async-mutex'
 
-// TODO: clean up stale rooms, e.g., no activity since 1 week.
-
 const redis = new Redis({
     host: config.redis
 })
