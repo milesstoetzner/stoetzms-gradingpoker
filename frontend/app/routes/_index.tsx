@@ -37,7 +37,7 @@ export default function Index() {
     function onRoomGenerate() {
         const generated = randomName()
         setSearchParam(KEY_ROOM, generated)
-        setRoom(getRoom)
+        setRoom(generated)
     }
 
     function onRoomChange(e: React.ChangeEvent<HTMLInputElement>) {
