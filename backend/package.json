@@ -23,7 +23,8 @@
         "limiter": "^3.0.0",
         "prettier": "^3.5.3",
         "socket.io": "^4.8.1",
-        "socket.io-client": "^4.8.1"
+        "socket.io-client": "^4.8.1",
+        "zod": "^3.25.74"
     },
     "devDependencies": {
         "@tsconfig/node22": "^22.0.2",

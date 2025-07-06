@@ -16,7 +16,7 @@ import {generateSeed} from './seed'
 import * as config from './config'
 import {RateLimiter} from "limiter";
 import * as persistency from './persistency'
-
+import * as parser from './parser'
 
 type SocketData = {
     ok: true,
@@ -60,9 +60,10 @@ io.on('connection', socket => {
 
     socket.on(
         ClientEvents.JOIN_ROOM,
-        async (data: JoinRoom, ack: Ack) => {
+        async (input: JoinRoom, ack: Ack) => {
             try {
-                console.log('socket', socket.data.id, 'on', ClientEvents.JOIN_ROOM, config.debug ? data : HIDDEN)
+                console.log('socket', socket.data.id, 'on', ClientEvents.JOIN_ROOM, config.debug ? input : HIDDEN)
+                const data = parser.joinRoom(input)
 
                 // Limit
                 await limit()
@@ -118,9 +119,10 @@ io.on('connection', socket => {
 
     socket.on(
         ClientEvents.SET_VOTE,
-        async (data: SetVote) => {
+        async (input: SetVote) => {
             try {
-                console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.SET_VOTE)
+                console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.SET_VOTE, config.debug ? input : HIDDEN)
+                const data = parser.setVote(input)
 
                 // Limit
                 await limit()

@@ -52,7 +52,6 @@ export type SetVoted = {
     user: string
 }
 
-
 export type AddUser = User
 
 export type RemoveUser = {
