@@ -1,14 +1,25 @@
 import Redis from "ioredis";
 import {Room, Votes} from "../../spec/types";
 import * as config from "./config";
+import {Mutex, MutexInterface, withTimeout} from 'async-mutex'
 
 // TODO: clean up stale rooms, e.g., no activity since 1 week.
-
-// TODO: transaction? locks in index.ts?
 
 const redis = new Redis({
     host: config.redis
 })
+
+const mutexes: {[key: string]: MutexInterface} = {}
+
+export async function lock(room: string): Promise<Lock> {
+    if (!mutexes[room]) mutexes[room] = withTimeout(new Mutex(), 2000)
+    await mutexes[room].acquire()
+    return mutexes[room]
+}
+
+export type Lock = {
+    release(): void
+}
 
 export async function health() {
     try {

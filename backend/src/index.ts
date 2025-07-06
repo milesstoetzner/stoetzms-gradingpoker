@@ -61,6 +61,8 @@ io.on('connection', socket => {
     socket.on(
         ClientEvents.JOIN_ROOM,
         async (input: JoinRoom, ack: Ack) => {
+            let lock: persistency.Lock | undefined
+
             try {
                 console.log('socket', socket.data.id, 'on', ClientEvents.JOIN_ROOM, config.debug ? input : HIDDEN)
                 const data = parser.joinRoom(input)
@@ -68,6 +70,9 @@ io.on('connection', socket => {
 
                 // Limit
                 await limit()
+
+                // Acquire
+                lock = await persistency.lock(data.room)
 
                 // Assert room
                 const exists = await persistency.hasRoom(data.room)
@@ -99,6 +104,9 @@ io.on('connection', socket => {
                 // Fetch room
                 const room = await persistency.getRoom(data.room)
 
+                // Release
+                await lock.release()
+
                 // Emit init state
                 emitInitState(room)
 
@@ -114,6 +122,8 @@ io.on('connection', socket => {
                 ack({ok: true})
             } catch (e) {
                 handleUnexpected(e)
+            } finally {
+                if (lock) await lock.release()
             }
         }
     )
@@ -121,6 +131,8 @@ io.on('connection', socket => {
     socket.on(
         ClientEvents.SET_VOTE,
         async (input: SetVote, ack: Ack) => {
+            let lock: persistency.Lock | undefined
+
             try {
                 console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.SET_VOTE, config.debug ? input : HIDDEN)
                 const data = parser.setVote(input)
@@ -132,11 +144,17 @@ io.on('connection', socket => {
                 // Assert socket
                 if (!socket.data.ok) return socket.disconnect(true)
 
+                // Acquire
+                lock = await persistency.lock(socket.data.room)
+
                 // Assert room
                 await persistency.hasRoom(socket.data.room)
 
                 // Update state
                 await persistency.setVote(socket.data.room, socket.data.user, data.vote)
+
+                // Release
+                await lock.release()
 
                 // Emit set vote to room
                 const emit = {user: socket.data.user}
@@ -147,6 +165,8 @@ io.on('connection', socket => {
                 ack({ok: true})
             } catch (e) {
                 handleUnexpected(e)
+            } finally {
+                if (lock) await lock.release()
             }
         }
     )
@@ -154,6 +174,8 @@ io.on('connection', socket => {
     socket.on(
         ClientEvents.SHOW_VOTES,
         async (ack: Ack) => {
+            let lock: persistency.Lock | undefined
+
             try {
                 console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.SHOW_VOTES)
                 parser.ack(ack)
@@ -164,6 +186,9 @@ io.on('connection', socket => {
                 // Assert
                 if (!socket.data.ok) return socket.disconnect(true)
 
+                // Acquire
+                lock = await persistency.lock(socket.data.room)
+
                 // Assert room
                 await persistency.hasRoom(socket.data.room)
 
@@ -172,6 +197,9 @@ io.on('connection', socket => {
 
                 // Fetch votes
                 const data = await persistency.getVotes(socket.data.room)
+
+                // Release
+                await lock.release()
 
                 // Emit show votes to room
                 console.log('server', socket.data.room, 'emit', ServerEvents.SHOW_VOTES, config.debug ? data : HIDDEN)
@@ -182,6 +210,8 @@ io.on('connection', socket => {
                 ack({ok: true})
             } catch (e) {
                 handleUnexpected(e)
+            } finally {
+                if (lock) await lock.release()
             }
         }
     )
@@ -189,6 +219,8 @@ io.on('connection', socket => {
     socket.on(
         ClientEvents.HIDE_VOTES,
         async (ack: Ack) => {
+            let lock: persistency.Lock | undefined
+
             try {
                 console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.HIDE_VOTES)
                 parser.ack(ack)
@@ -199,11 +231,17 @@ io.on('connection', socket => {
                 // Assert
                 if (!socket.data.ok) return socket.disconnect(true)
 
+                // Acquire
+                lock = await persistency.lock(socket.data.room)
+
                 // Assert room
                 await persistency.hasRoom(socket.data.room)
 
                 // Update state
                 await persistency.setHidden(socket.data.room, true)
+
+                // Release
+                await lock.release()
 
                 // Emit hide votes to room
                 console.log('server', socket.data.room, 'emit', ServerEvents.HIDE_VOTES)
@@ -213,6 +251,8 @@ io.on('connection', socket => {
                 ack({ok: true})
             } catch (e) {
                 handleUnexpected(e)
+            } finally {
+                if (lock) await lock.release()
             }
         }
     )
@@ -242,6 +282,8 @@ io.on('connection', socket => {
     )
 
     socket.on(ClientEvents.INIT_STATE, async (ack: Ack) => {
+        let lock: persistency.Lock | undefined
+
         try {
             console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.INIT_STATE)
             parser.ack(ack)
@@ -252,11 +294,17 @@ io.on('connection', socket => {
             // Assert
             if (!socket.data.ok) return socket.disconnect(true)
 
+            // Acquire
+            lock = await persistency.lock(socket.data.room)
+
             // Assert room
             await persistency.hasRoom(socket.data.room)
 
             // Get room
             const room = await persistency.getRoom(socket.data.room)
+
+            // Release
+            await lock.release()
 
             // Emit init state
             emitInitState(room)
@@ -265,6 +313,8 @@ io.on('connection', socket => {
             ack({ok: true})
         } catch (e) {
             handleUnexpected(e)
+        } finally {
+            if (lock) await lock.release()
         }
 
     })
