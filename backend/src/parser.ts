@@ -1,5 +1,5 @@
 import * as z from "zod/v4";
-import {Ack, JoinRoom, SetVote} from "../../spec/types";
+import {Ack, JoinRoom, RemoveUser, SetVote} from "../../spec/types";
 
 const _joinRoom = z.object({
     room:  z.string(),
@@ -17,6 +17,14 @@ const _setVote = z.object({
 
 export function setVote(input: any): SetVote {
     return _setVote.parse(input)
+}
+
+const _removeUser = z.object({
+    user: z.string(),
+})
+
+export function removeUser(input: any): RemoveUser {
+    return _removeUser.parse(input)
 }
 
 export function ack(input: any): input is Ack {

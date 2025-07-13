@@ -3,7 +3,7 @@ import {Card, CardContent, CardFooter, CardHeader, CardTitle} from '../ui/card'
 import React, {useEffect, useState} from 'react'
 import {Avatar, AvatarImage} from '../ui/avatar'
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '../ui/table'
-import {CircleArrowLeft, Eye, EyeOff, Trash2} from 'lucide-react'
+import {CircleArrowLeft, Eye, EyeOff, RefreshCw, Trash2, UserX} from 'lucide-react'
 import {toast} from 'sonner'
 import {ResultContent} from './result'
 import Ballot from './ballot'
@@ -39,6 +39,8 @@ import {
     DialogTrigger,
 } from '../ui/dialog'
 import {Badge} from "../ui/badge";
+import Hover from "./hover";
+import Kick from "./kick";
 
 export function RoomCard(props: { room: string; user: string; setProcess: (process: string) => void }) {
     const [searchParams, _] = useSearchParams()
@@ -128,6 +130,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
 
         socket.on(ServerEvents.REMOVE_USER, (data: RemoveUser) => {
             console.log('socket', id, 'on', ServerEvents.REMOVE_USER, debug ? data : HIDDEN)
+            // TODO: remove vote?
             setUsers(prev => prev.filter(it => it.name !== data.user))
         })
 
@@ -188,7 +191,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
     function onLocalShowVotes() {
         setHidden(false)
         console.log('socket', socket.id, 'emit', ClientEvents.SHOW_VOTES)
-        socket.emit(ClientEvents.SHOW_VOTES,  (data: Response) => {
+        socket.emit(ClientEvents.SHOW_VOTES, (data: Response) => {
             console.log('socket', socket.id, 'ack', ClientEvents.SHOW_VOTES, data)
         })
     }
@@ -214,6 +217,21 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
             if (!data.ok) return
             toast('Room closed ...')
             onLocalBack()
+        })
+    }
+
+    function onRemoveUser(user: string) {
+        console.log('socket', socket.id, 'emit', ClientEvents.REMOVE_USER)
+        socket.emit(ClientEvents.REMOVE_USER, {user}, (data: Response) => {
+            console.log('socket', socket.id, 'ack', ClientEvents.REMOVE_USER, data)
+        })
+    }
+
+    function onRefresh() {
+        console.log('socket', socket.id, 'on', ClientEvents.INIT_STATE)
+        socket.emit(ClientEvents.INIT_STATE, (data: Response) => {
+            console.log('socket', socket.id, 'ack', ClientEvents.INIT_STATE, data)
+            toast('Refreshed ...')
         })
     }
 
@@ -254,7 +272,16 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                         >
                             <CardTitle>{props.room}</CardTitle>
 
-                            <Share/>
+                            <span className="flex items-center gap-2 ml-auto">
+                                <Hover message="Refresh">
+                                <Button variant="outline" className="size-8" onClick={onRefresh}>
+                                    <RefreshCw size="icon"/>
+                                </Button>
+                                </Hover>
+
+                                <Share/>
+                            </span>
+
                         </CardHeader>
 
                         <CardContent className="min-h-[450px]">
@@ -276,7 +303,8 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                                     ></AvatarImage>
                                                 </Avatar>
                                             </TableCell>
-                                            <TableCell>{user.name} {user.name === props.user && <Badge className="ml-[0.5rem]" >me</Badge>} </TableCell>
+                                            <TableCell>{user.name} {user.name === props.user &&
+                                                <Badge className="ml-[0.5rem]">me</Badge>}  </TableCell>
                                             <TableCell>
                                                 {user.name === props.user ? (
                                                     <Ballot value={vote} onChange={onVoteChange} disabled={!connected}/>
@@ -310,6 +338,8 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                     disabled={!connected}>
                                 <EyeOff/> Hide Votes
                             </Button>
+
+                            <Kick users={users} onClick={onRemoveUser} disabled={!connected}/>
 
                             <Dialog>
                                 <DialogTrigger asChild>

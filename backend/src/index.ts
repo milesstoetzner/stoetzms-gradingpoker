@@ -9,7 +9,7 @@ import {
     ServerEvents,
     ServerToClientEvents,
     SetVote,
-    User
+    User, RemoveUser
 } from '../../spec/types'
 import {generateAvatar} from './utils'
 import {generateSeed} from './seed'
@@ -253,6 +253,48 @@ io.on('connection', socket => {
                 handleUnexpected(e)
             } finally {
                 if (lock) await lock.release()
+            }
+        }
+    )
+
+    socket.on(
+        ClientEvents.REMOVE_USER,
+        async (input: RemoveUser, ack: Ack) => {
+            try {
+                console.log(socket.data.id, socket.data.room, 'on', ClientEvents.REMOVE_USER, config.debug ? input : HIDDEN)
+                const data = parser.removeUser(input)
+                parser.ack(ack)
+
+                // Limit
+                await limit()
+
+                // Assert
+                if (!socket.data.ok) return socket.disconnect(true)
+
+                // Disconnect user
+                // TODO: this does not scale horizontally
+                const sockets = await io.in(socket.data.room).fetchSockets();
+                const target = sockets.find(it => it.data.user === data.user);
+                if (target) target.disconnect(true);
+
+                // Manually cleanup broken user
+                await persistency.removeUser(socket.data.room, socket.data.user)
+                await persistency.removeVote(socket.data.room, socket.data.user)
+                const emit = {user: data.user}
+                console.log(
+                    'server',
+                    socket.data.room,
+                    'emit',
+                    ServerEvents.REMOVE_USER,
+                    config.debug ? emit : HIDDEN
+                )
+                socket.to(socket.data.room).emit(ServerEvents.REMOVE_USER, emit)
+                socket.emit(ServerEvents.REMOVE_USER, emit)
+
+                // Emit ack
+                ack({ok: true})
+            } catch (e) {
+                handleUnexpected(e)
             }
         }
     )

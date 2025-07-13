@@ -7,6 +7,7 @@ export enum ClientEvents {
     HIDE_VOTES = 'hide-votes',
 
     CLOSE_ROOM = 'close-room',
+    REMOVE_USER = 'remove-user',
 
     HEALTH = 'health',
 }
@@ -79,6 +80,7 @@ export interface ClientToServerEvents {
     [ClientEvents.JOIN_ROOM]: (data: JoinRoom, ack: Ack) => void;
     [ClientEvents.INIT_STATE]: (ack: Ack) => void;
     [ClientEvents.CLOSE_ROOM]: (ack: Ack) => void;
+    [ClientEvents.REMOVE_USER]: (data: RemoveUser, ack: Ack) => void;
 
     [ClientEvents.SET_VOTE]: (data: SetVote, ack: Ack) => void;
     [ClientEvents.SHOW_VOTES]: (ack: Ack) => void;
