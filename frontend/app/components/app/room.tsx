@@ -130,7 +130,6 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
 
         socket.on(ServerEvents.REMOVE_USER, (data: RemoveUser) => {
             console.log('socket', id, 'on', ServerEvents.REMOVE_USER, debug ? data : HIDDEN)
-            // TODO: remove vote?
             setUsers(prev => prev.filter(it => it.name !== data.user))
         })
 
@@ -388,7 +387,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                 <p className="text-sm text-center">Still voting ...</p>
                             </div>
                         ) : (
-                            <ResultContent votes={votes}/>
+                            <ResultContent room={props.room} votes={votes} users={users}/>
                         )}
                     </div>
                 </div>
