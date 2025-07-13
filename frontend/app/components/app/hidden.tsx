@@ -4,7 +4,7 @@ import React from 'react'
 
 export default function Hidden() {
     return (
-        <Button className="w-full cursor-default hover:bg-black">
+        <Button className="w-[180px] cursor-default hover:bg-black">
             <EyeOff /> Hidden
         </Button>
     )

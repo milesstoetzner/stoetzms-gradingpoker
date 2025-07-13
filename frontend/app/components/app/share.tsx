@@ -12,7 +12,7 @@ export default function Share() {
     }
 
     return (
-        <Hover message="Copy link">
+        <Hover message="Copy Link">
             <Button variant="outline" className="size-8" onClick={share}>
                 <Share2 />
             </Button>

@@ -3,7 +3,7 @@ import {Card, CardContent, CardFooter, CardHeader, CardTitle} from '../ui/card'
 import React, {useEffect, useState} from 'react'
 import {Avatar, AvatarImage} from '../ui/avatar'
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '../ui/table'
-import {CircleArrowLeft, Eye, EyeOff, RefreshCw, Trash2, UserX} from 'lucide-react'
+import {ChartPie, CircleArrowLeft, Eye, EyeOff, RefreshCw, Trash2} from 'lucide-react'
 import {toast} from 'sonner'
 import {ResultContent} from './result'
 import Ballot from './ballot'
@@ -171,6 +171,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
     const [votes, setVotes] = React.useState<Votes>({})
     const [voted, setVoted] = React.useState<Voted>({})
     const [vote, setVote] = React.useState<string>('')
+    const [presentation, setPresentation] = React.useState<boolean>(false)
 
     function onVoteChange(vote: string) {
         onLocalHideVotes()
@@ -273,7 +274,14 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                             <CardTitle>{props.room}</CardTitle>
 
                             <span className="flex items-center gap-2 ml-auto">
-                                <Hover message="Refresh">
+                                <Hover message="Presentation Mode">
+                                <Button variant="outline" className="size-8" onClick={() => setPresentation(prev => !prev)}>
+                                    <ChartPie size="icon"/>
+                                </Button>
+                                </Hover>
+
+
+                                <Hover message="Refresh Room">
                                 <Button variant="outline" className="size-8" onClick={onRefresh}>
                                     <RefreshCw size="icon"/>
                                 </Button>
@@ -306,7 +314,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                             <TableCell>{user.name} {user.name === props.user &&
                                                 <Badge className="ml-[0.5rem]">me</Badge>}  </TableCell>
                                             <TableCell>
-                                                {user.name === props.user ? (
+                                                {user.name === props.user && !presentation ? (
                                                     <Ballot value={vote} onChange={onVoteChange} disabled={!connected}/>
                                                 ) : voted[user.name] ? (
                                                     hidden ? (
