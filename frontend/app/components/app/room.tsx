@@ -310,7 +310,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                                     ></AvatarImage>
                                                 </Avatar>
                                             </TableCell>
-                                            <TableCell>{user.name} {user.name === props.user &&
+                                            <TableCell>{user.name} {user.name === props.user && !presentation &&
                                                 <Badge className="ml-[0.5rem]">me</Badge>}  </TableCell>
                                             <TableCell>
                                                 {user.name === props.user && !presentation ? (
