@@ -52,7 +52,7 @@ export function JoinCard(props: {
                 </div>
             </CardContent>
             <CardFooter className="flex-col gap-2">
-                <Button className="w-full" onClick={() => props.setProcess('ROOM')}>
+                <Button className="w-full" onClick={() => props.setProcess('ROOM')} disabled={!props.room || !props.user}>
                     <ArrowRightCircle /> Join
                 </Button>
             </CardFooter>
