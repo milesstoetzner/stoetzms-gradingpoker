@@ -3,7 +3,7 @@ import {Card, CardContent, CardFooter, CardHeader, CardTitle} from '../ui/card'
 import React, {useEffect, useState} from 'react'
 import {Avatar, AvatarImage} from '../ui/avatar'
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '../ui/table'
-import {ChartPie, CircleArrowLeft, Eye, EyeOff, RefreshCw, Trash2} from 'lucide-react'
+import {CircleArrowLeft, Eye, EyeOff, Presentation, RefreshCw, Trash2} from 'lucide-react'
 import {toast} from 'sonner'
 import {ResultContent} from './result'
 import Ballot from './ballot'
@@ -274,8 +274,8 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
 
                             <span className="flex items-center gap-2 ml-auto">
                                 <Hover message="Presentation Mode">
-                                <Button variant="outline" className="size-8" onClick={() => setPresentation(prev => !prev)}>
-                                    <ChartPie size="icon"/>
+                                <Button variant={presentation ? "default" : "outline"} className="size-8" onClick={() => setPresentation(prev => !prev)}>
+                                    <Presentation size="icon"/>
                                 </Button>
                                 </Hover>
 

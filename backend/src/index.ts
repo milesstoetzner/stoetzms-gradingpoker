@@ -272,7 +272,6 @@ io.on('connection', socket => {
                 if (!socket.data.ok) return socket.disconnect(true)
 
                 // Disconnect user
-                // TODO: this does not scale horizontally
                 const sockets = await io.in(socket.data.room).fetchSockets();
                 const target = sockets.find(it => it.data.user === data.user);
                 if (target) target.disconnect(true);
