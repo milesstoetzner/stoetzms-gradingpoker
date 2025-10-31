@@ -20,7 +20,6 @@ export class PersistencyRedis implements Persistency {
         })
     }
 
-    // TODO: distributed lock
     async lock(room: string): Promise<Lock> {
         if (!this.mutexes[room]) this.mutexes[room] = withTimeout(new Mutex(), 2000)
         await this.mutexes[room].acquire()
