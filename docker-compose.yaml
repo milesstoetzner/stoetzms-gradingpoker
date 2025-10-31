@@ -12,6 +12,8 @@ services:
       dockerfile: backend/Dockerfile
       context: .
     restart: unless-stopped
+    environment:
+      STOETZMS_GRADING_POKER_PERSISTENCY: redis
     ports:
       - '3000:3000'
 

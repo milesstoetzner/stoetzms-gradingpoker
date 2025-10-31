@@ -15,8 +15,12 @@ import {generateAvatar} from './utils'
 import {generateSeed} from './seed'
 import * as config from './config'
 import {RateLimiter} from "limiter";
-import * as persistency from './persistency'
 import * as parser from './parser'
+import {load} from "./persistency";
+import {Lock} from "./persistency/types";
+
+const persistency = load()
+await persistency.init()
 
 type SocketData = {
     ok: true,
@@ -61,7 +65,7 @@ io.on('connection', socket => {
     socket.on(
         ClientEvents.JOIN_ROOM,
         async (input: JoinRoom, ack: Ack) => {
-            let lock: persistency.Lock | undefined
+            let lock: Lock | undefined
 
             try {
                 console.log('socket', socket.data.id, 'on', ClientEvents.JOIN_ROOM, config.debug ? input : HIDDEN)
@@ -131,7 +135,7 @@ io.on('connection', socket => {
     socket.on(
         ClientEvents.SET_VOTE,
         async (input: SetVote, ack: Ack) => {
-            let lock: persistency.Lock | undefined
+            let lock: Lock | undefined
 
             try {
                 console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.SET_VOTE, config.debug ? input : HIDDEN)
@@ -174,7 +178,7 @@ io.on('connection', socket => {
     socket.on(
         ClientEvents.SHOW_VOTES,
         async (ack: Ack) => {
-            let lock: persistency.Lock | undefined
+            let lock: Lock | undefined
 
             try {
                 console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.SHOW_VOTES)
@@ -219,7 +223,7 @@ io.on('connection', socket => {
     socket.on(
         ClientEvents.HIDE_VOTES,
         async (ack: Ack) => {
-            let lock: persistency.Lock | undefined
+            let lock: Lock | undefined
 
             try {
                 console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.HIDE_VOTES)
@@ -323,7 +327,7 @@ io.on('connection', socket => {
     )
 
     socket.on(ClientEvents.INIT_STATE, async (ack: Ack) => {
-        let lock: persistency.Lock | undefined
+        let lock: Lock | undefined
 
         try {
             console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.INIT_STATE)

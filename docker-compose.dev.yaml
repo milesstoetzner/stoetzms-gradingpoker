@@ -18,6 +18,8 @@ services:
   backend:
     image: node:22-alpine
     working_dir: /project
+    environment:
+      STOETZMS_GRADING_POKER_PERSISTENCY: redis
     volumes:
       - .:/project
     entrypoint: [ "sh", "-c", "corepack enable && corepack prepare pnpm@latest --activate && cd backend && pnpm install && pnpm run dev" ]
