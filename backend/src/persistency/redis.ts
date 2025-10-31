@@ -149,7 +149,6 @@ export class PersistencyRedis implements Persistency {
     }
 }
 
-
 function last(key: string) {
     const split = key.split(":")
     return split[split.length - 1]!

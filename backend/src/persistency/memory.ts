@@ -29,7 +29,6 @@ export class PersistencyMemory implements Persistency {
         return true
     }
 
-
     async setHidden(room: string, hidden: boolean) {
         this.data[room].hidden = hidden
     }
