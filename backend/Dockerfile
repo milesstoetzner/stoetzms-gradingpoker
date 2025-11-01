@@ -1,4 +1,5 @@
 FROM node:22-alpine
+LABEL org.opencontainers.image.source=https://github.com/milesstoetzner/stoetzms-gradingpoker
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 COPY backend/package.json .

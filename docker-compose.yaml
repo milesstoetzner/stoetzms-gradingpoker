@@ -5,7 +5,7 @@ services:
       context: .
     restart: unless-stopped
     ports:
-      - '3001:80'
+      - '4001:80'
 
   backend:
     build:
@@ -15,7 +15,7 @@ services:
     environment:
       STOETZMS_GRADING_POKER_PERSISTENCY: redis
     ports:
-      - '3000:3000'
+      - '4000:3000'
 
   redis:
     image: redis:8.0
