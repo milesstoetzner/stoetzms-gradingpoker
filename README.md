@@ -10,6 +10,12 @@ Start the development environment and access the app at http://localhost.
 docker compose -f docker-compose.dev.yaml up -d
 ```
 
+Alternatively, run backend and frontend directly (the vite dev server proxies `/socket.io` to `http://localhost:3000`).
+
+```
+cd backend && pnpm dev
+cd frontend && pnpm dev
+```
 
 
 ## Tests

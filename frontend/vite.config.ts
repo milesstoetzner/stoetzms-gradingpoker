@@ -25,5 +25,12 @@ export default defineConfig({
     server: {
         allowedHosts: true,
         host: true,
+        // Lets `pnpm dev` talk to a locally running backend without the nginx proxy
+        proxy: {
+            '/socket.io': {
+                target: process.env.STOETZMS_GRADING_POKER_BACKEND ?? 'http://localhost:3000',
+                ws: true,
+            },
+        },
     },
 })
