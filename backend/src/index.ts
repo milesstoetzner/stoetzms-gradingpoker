@@ -86,7 +86,7 @@ io.on('connection', socket => {
 
                 // Assert room
                 const exists = await persistency.hasRoom(data.room)
-                if (!exists) await persistency.addRoom(data.room, data.seed ? generateSeed() : undefined)
+                if (!exists) await persistency.addRoom(data.room, data.seed && config.seed ? generateSeed() : undefined)
 
                 // Check if another user with same name exists
                 const collision = await persistency.hasUser(data.room, data.user)

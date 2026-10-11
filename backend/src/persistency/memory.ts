@@ -59,7 +59,7 @@ export class PersistencyMemory implements Persistency {
 
     async addRoom(room: string, seed?: Room) {
         this.data[room] = {
-            hidden: true,
+            hidden: seed?.hidden ?? true,
             users: seed?.users || [],
             votes: seed?.votes || {},
         }
