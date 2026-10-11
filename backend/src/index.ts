@@ -108,9 +108,6 @@ io.on('connection', socket => {
                 // Fetch room
                 const room = await persistency.getRoom(data.room)
 
-                // Release
-                await lock.release()
-
                 // Emit init state
                 emitInitState(room)
 
@@ -157,9 +154,6 @@ io.on('connection', socket => {
                 // Update state
                 await persistency.setVote(socket.data.room, socket.data.user, data.vote)
 
-                // Release
-                await lock.release()
-
                 // Emit set vote to room
                 const emit = {user: socket.data.user}
                 console.log('server', socket.data.room, 'emit', ServerEvents.SET_VOTED, config.debug ? emit : HIDDEN)
@@ -202,9 +196,6 @@ io.on('connection', socket => {
                 // Fetch votes
                 const data = await persistency.getVotes(socket.data.room)
 
-                // Release
-                await lock.release()
-
                 // Emit show votes to room
                 console.log('server', socket.data.room, 'emit', ServerEvents.SHOW_VOTES, config.debug ? data : HIDDEN)
                 socket.to(socket.data.room).emit(ServerEvents.SHOW_VOTES, data)
@@ -243,9 +234,6 @@ io.on('connection', socket => {
 
                 // Update state
                 await persistency.setHidden(socket.data.room, true)
-
-                // Release
-                await lock.release()
 
                 // Emit hide votes to room
                 console.log('server', socket.data.room, 'emit', ServerEvents.HIDE_VOTES)
@@ -348,9 +336,6 @@ io.on('connection', socket => {
             // Get room
             const room = await persistency.getRoom(socket.data.room)
 
-            // Release
-            await lock.release()
-
             // Emit init state
             emitInitState(room)
 
@@ -367,13 +352,18 @@ io.on('connection', socket => {
     socket.on(
         'disconnect',
         async (reason) => {
+            let lock: Lock | undefined
+
             try {
                 console.log('socket', socket.data.id, socket.data.room, 'on', 'disconnected', reason)
 
                 // Assert
-                if (!socket.data.ok) return socket.disconnect(true)
+                if (!socket.data.ok) return
 
                 if (socket.data.room) {
+                    // Acquire
+                    lock = await persistency.lock(socket.data.room)
+
                     // Update state
                     await persistency.removeUser(socket.data.room, socket.data.user)
                     await persistency.removeVote(socket.data.room, socket.data.user)
@@ -401,6 +391,8 @@ io.on('connection', socket => {
 
             } catch (e) {
                 handleUnexpected(e)
+            } finally {
+                if (lock) await lock.release()
             }
         }
     )
