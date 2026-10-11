@@ -131,6 +131,8 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
         socket.on(ServerEvents.REMOVE_USER, (data: RemoveUser) => {
             console.log('socket', id, 'on', ServerEvents.REMOVE_USER, debug ? data : HIDDEN)
             setUsers(prev => prev.filter(it => it.name !== data.user))
+            setVoted(prev => omit(prev, data.user))
+            setVotes(prev => omit(prev, data.user))
         })
 
         socket.on(ServerEvents.SHOW_VOTES, (data: Votes) => {
@@ -434,4 +436,10 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
             )}
         </div>
     )
+}
+
+function omit<T extends object>(data: T, key: string): T {
+    const copy = {...data}
+    delete copy[key as keyof T]
+    return copy
 }

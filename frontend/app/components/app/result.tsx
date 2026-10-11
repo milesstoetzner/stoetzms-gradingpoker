@@ -54,7 +54,7 @@ export function ResultContent(props: { votes: Votes, users: User[], room: string
 
     const average = numbers.length === 0 ? '(no numeric votes)' : getAverage(numbers).toFixed(2)
     const median = numbers.length === 0 ? '(no numeric votes)' : getMedian(numbers).toFixed(2)
-    const most = distribution.filter(it => it.absolute === distribution[0].absolute)
+    const most = distribution.length ? distribution.filter(it => it.absolute === distribution[0].absolute) : []
 
     function onDownload() {
         const date = new Date().toISOString()
