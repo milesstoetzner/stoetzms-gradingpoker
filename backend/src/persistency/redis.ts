@@ -16,7 +16,8 @@ export class PersistencyRedis implements Persistency {
 
     async init() {
         this._redis = new Redis({
-            host: config.redis
+            host: config.redis,
+            port: config.redisPort,
         })
     }
 

@@ -11,6 +11,17 @@ docker compose -f docker-compose.dev.yaml up -d
 ```
 
 
+
+## Tests
+
+Backend integration tests run against the in-memory persistency and, if `TEST_REDIS_PORT` is set, also against Redis.
+
+```
+docker run -d --rm --name gradingpoker-test-redis -p 16379:6379 redis:8.0
+cd backend && TEST_REDIS_PORT=16379 pnpm test
+```
+
+
 ## Release
 
 Build the release image.
