@@ -495,12 +495,17 @@ process.on('unhandledRejection', err => {
     console.log(err)
 })
 
-process.on('SIGINT', async () => {
+async function shutdown(signal: string) {
     try {
-        console.log('server', 'on', 'SIGNIT')
+        console.log('server', 'on', signal)
         await io.close()
+        await persistency.close()
+        process.exit(0)
     } catch (e) {
         console.log(e)
         process.exit(1)
     }
-})
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'))
+process.on('SIGTERM', () => shutdown('SIGTERM'))

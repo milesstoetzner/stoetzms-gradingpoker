@@ -21,6 +21,10 @@ export class PersistencyRedis implements Persistency {
         })
     }
 
+    async close() {
+        await this._redis?.quit()
+    }
+
     async lock(room: string): Promise<Lock> {
         if (!this.mutexes[room]) this.mutexes[room] = withTimeout(new Mutex(), 2000)
         await this.mutexes[room].acquire()

@@ -7,6 +7,8 @@ export interface Lock {
 export interface Persistency {
     init(): Promise<void>
 
+    close(): Promise<void>
+
     lock(room: string): Promise<Lock>
 
     health(): Promise<boolean>
