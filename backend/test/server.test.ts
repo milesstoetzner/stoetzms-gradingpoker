@@ -116,6 +116,14 @@ describe.each(persistencies)('server (%s)', persistency => {
         expect((await state).users.filter(it => it.name === 'same')).toHaveLength(1)
     })
 
+    test('a socket cannot join twice', async () => {
+        const room = unique('room')
+        const alice = server.client()
+        await join(alice, room, 'alice')
+        await expect(join(alice, room, 'mallory')).rejects.toThrow()
+        expect(alice.notifications).toContain('Already joined a room ...')
+    })
+
     test('closing a room notifies everyone', async () => {
         const room = unique('room')
         const alice = server.client()

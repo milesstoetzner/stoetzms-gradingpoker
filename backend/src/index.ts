@@ -81,6 +81,9 @@ io.on('connection', socket => {
                 // Limit
                 await limit()
 
+                // Assert socket has not joined yet
+                if (socket.data.ok) return emitError('Already joined a room ...')
+
                 // Acquire
                 lock = await persistency.lock(data.room)
 
@@ -99,17 +102,14 @@ io.on('connection', socket => {
                 }
 
                 // Init metadata
-                socket.data.ok = true
-                socket.data.user = data.user
-                socket.data.room = data.room
-                socket.data.avatar = user.avatar
+                socket.data = {ok: true, id: socket.data.id, user: data.user, room: data.room, avatar: user.avatar}
 
                 // Update state
-                await persistency.addUser(socket.data.room, user.name, user.avatar)
-                await persistency.setHidden(socket.data.room, true)
+                await persistency.addUser(data.room, user.name, user.avatar)
+                await persistency.setHidden(data.room, true)
 
                 // Join broadcast
-                socket.join(socket.data.room)
+                socket.join(data.room)
 
                 // Fetch room
                 const room = await persistency.getRoom(data.room)
@@ -118,12 +118,12 @@ io.on('connection', socket => {
                 emitInitState(room)
 
                 // Emit add user to room
-                console.log('server', socket.data.room, 'emit', ServerEvents.ADD_USER, config.debug ? user : HIDDEN)
-                socket.to(socket.data.room).emit(ServerEvents.ADD_USER, user)
+                console.log('server', data.room, 'emit', ServerEvents.ADD_USER, config.debug ? user : HIDDEN)
+                socket.to(data.room).emit(ServerEvents.ADD_USER, user)
 
                 // Emit hide votes to room
-                console.log('server', socket.data.room, 'emit', ServerEvents.HIDE_VOTES)
-                socket.to(socket.data.room).emit(ServerEvents.HIDE_VOTES)
+                console.log('server', data.room, 'emit', ServerEvents.HIDE_VOTES)
+                socket.to(data.room).emit(ServerEvents.HIDE_VOTES)
 
                 // Emit ack
                 ack({ok: true})
