@@ -25,6 +25,25 @@ describe.each(persistencies)('server (%s)', persistency => {
         expect(await shown).toEqual({alice: '1.3'})
     })
 
+    test('rate limited requests are rejected and not applied', async () => {
+        const room = unique('room')
+        const alice = server.client()
+        const bob = server.client()
+        await join(alice, room, 'alice')
+        await join(bob, room, 'bob')
+
+        // join consumed 1 of 30 tokens
+        for (let i = 0; i < 29; i++) await ack(alice, ClientEvents.INIT_STATE)
+
+        // Limited: no ack, no state change
+        await expect(ack(alice, ClientEvents.SET_VOTE, {vote: '1.0'})).rejects.toThrow()
+        expect(alice.notifications).toContain('Too many requests ...')
+
+        const state = next<Room>(bob, ServerEvents.INIT_STATE)
+        await ack(bob, ClientEvents.INIT_STATE)
+        expect((await state).voted).toEqual({})
+    })
+
     test('concurrent joins with the same name admit exactly one user', async () => {
         const room = unique('room')
 

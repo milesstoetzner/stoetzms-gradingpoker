@@ -14,7 +14,7 @@ import {
 import {generateAvatar} from './utils'
 import {generateSeed} from './seed'
 import * as config from './config'
-import {RateLimiter} from "limiter";
+import {RateLimiter} from 'limiter'
 import * as parser from './parser'
 import {load} from "./persistency";
 import {Lock} from "./persistency/types";
@@ -43,6 +43,12 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, {}, SocketData
 io.on('error', (err: Error) => {
     console.log('server', 'on', 'error', err)
 })
+
+class TooManyRequests extends Error {
+    constructor() {
+        super('Too many requests ...')
+    }
+}
 
 io.on('connection', socket => {
     socket.data.id = socket.id
@@ -411,9 +417,7 @@ io.on('connection', socket => {
     const limiter = new RateLimiter({tokensPerInterval: 30, interval: 60 * 500, fireImmediately: true})
 
     async function limit() {
-        const remaining = await limiter.removeTokens(1)
-        if (remaining > 0) return
-        emitError('Too many requests ...')
+        if (!limiter.tryRemoveTokens(1)) throw new TooManyRequests()
     }
 
     function emitError(message: string, ack?: Ack): void {
@@ -423,6 +427,8 @@ io.on('connection', socket => {
     }
 
     function handleUnexpected(error: unknown) {
+        if (error instanceof TooManyRequests) return emitError(error.message)
+
         console.log(error)
 
         if (socket.connected) {
