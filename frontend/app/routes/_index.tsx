@@ -53,11 +53,15 @@ export default function Index() {
     }
 
     function setSearchParam(key: string, value: string) {
-        setSearchParams(prev => {
-            const params = new URLSearchParams(prev)
-            params.set(key, value)
-            return params
-        })
+        // Replace instead of push, otherwise every keystroke creates a history entry
+        setSearchParams(
+            prev => {
+                const params = new URLSearchParams(prev)
+                params.set(key, value)
+                return params
+            },
+            {replace: true}
+        )
     }
 
     const [user, setUser] = React.useState<string>(getUser())
