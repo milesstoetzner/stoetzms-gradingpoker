@@ -258,6 +258,8 @@ io.on('connection', socket => {
     socket.on(
         ClientEvents.REMOVE_USER,
         async (input: RemoveUser, ack: Ack) => {
+            let lock: Lock | undefined
+
             try {
                 console.log(socket.data.id, socket.data.room, 'on', ClientEvents.REMOVE_USER, config.debug ? input : HIDDEN)
                 const data = parser.removeUser(input)
@@ -269,14 +271,20 @@ io.on('connection', socket => {
                 // Assert
                 if (!socket.data.ok) return socket.disconnect(true)
 
-                // Disconnect user
-                const sockets = await io.in(socket.data.room).fetchSockets();
-                const target = sockets.find(it => it.data.user === data.user);
-                if (target) target.disconnect(true);
+                // Acquire
+                lock = await persistency.lock(socket.data.room)
 
-                // Manually cleanup broken user
-                await persistency.removeUser(socket.data.room, socket.data.user)
-                await persistency.removeVote(socket.data.room, socket.data.user)
+                // Disconnect user
+                const sockets = await io.in(socket.data.room).fetchSockets()
+                const target = sockets.find(it => it.data.user === data.user)
+                if (target) {
+                    target.emit(ServerEvents.SHOW_NOTIFICATION, {message: `You have been removed by ${socket.data.user} ...`})
+                    target.disconnect(true)
+                }
+
+                // Manually cleanup broken user (the target's own disconnect handler might never run)
+                await persistency.removeUser(socket.data.room, data.user)
+                await persistency.removeVote(socket.data.room, data.user)
                 const emit = {user: data.user}
                 console.log(
                     'server',
@@ -292,6 +300,8 @@ io.on('connection', socket => {
                 ack({ok: true})
             } catch (e) {
                 handleUnexpected(e)
+            } finally {
+                if (lock) await lock.release()
             }
         }
     )

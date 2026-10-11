@@ -25,6 +25,29 @@ describe.each(persistencies)('server (%s)', persistency => {
         expect(await shown).toEqual({alice: '1.3'})
     })
 
+    test('removing a user removes the target, not the requester', async () => {
+        const room = unique('room')
+        const alice = server.client()
+        const bob = server.client()
+        const carol = server.client()
+
+        await join(alice, room, 'alice')
+        await join(bob, room, 'bob')
+        await join(carol, room, 'carol')
+        await ack(alice, ClientEvents.SET_VOTE, {vote: '2.0'})
+
+        const disconnected = next(bob, 'disconnect')
+        expect(await ack(alice, ClientEvents.REMOVE_USER, {user: 'bob'})).toEqual({ok: true})
+        await disconnected
+        expect(bob.notifications).toContain('You have been removed by alice ...')
+
+        const state = next<Room>(carol, ServerEvents.INIT_STATE)
+        await ack(carol, ClientEvents.INIT_STATE)
+        const room_ = await state
+        expect(room_.users.map(it => it.name).sort()).toEqual(['alice', 'carol'])
+        expect(room_.voted).toEqual({alice: true})
+    })
+
     test('rate limited requests are rejected and not applied', async () => {
         const room = unique('room')
         const alice = server.client()
