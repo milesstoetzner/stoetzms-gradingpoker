@@ -67,6 +67,37 @@ describe.each(persistencies)('server (%s)', persistency => {
         expect((await state).voted).toEqual({})
     })
 
+    test.each([
+        ['room', '*'],
+        ['room', 'a:b'],
+        ['room', '   '],
+        ['room', 'x'.repeat(65)],
+        ['user', 'evil*'],
+        ['user', ''],
+    ])('invalid %s name %j is rejected', async (field, value) => {
+        const client = server.client()
+        const input = {room: unique('room'), user: 'alice', [field]: value}
+        await expect(join(client, input.room, input.user)).rejects.toThrow()
+        await sleep(50)
+        expect(client.notifications[0]).toMatch(new RegExp(`^Invalid ${field}`))
+    })
+
+    test('unknown votes are rejected', async () => {
+        const alice = server.client()
+        await join(alice, unique('room'), 'alice')
+        await expect(ack(alice, ClientEvents.SET_VOTE, {vote: 'x'.repeat(10000)})).rejects.toThrow()
+        await sleep(50)
+        expect(alice.notifications).toContain('Invalid vote: Unknown vote')
+    })
+
+    test('names are trimmed', async () => {
+        const room = unique('room')
+        const alice = server.client()
+        const state = next<Room>(alice, ServerEvents.INIT_STATE)
+        await join(alice, `  ${room} `, '  alice ')
+        expect((await state).users.map(it => it.name)).toEqual(['alice'])
+    })
+
     test('concurrent joins with the same name admit exactly one user', async () => {
         const room = unique('room')
 

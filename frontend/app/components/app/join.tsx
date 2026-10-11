@@ -5,6 +5,7 @@ import {Label} from '../ui/label'
 import React from 'react'
 import {ArrowLeft, ArrowLeftCircle, ArrowRightCircle, ArrowRightLeft, RefreshCw, Vote} from 'lucide-react'
 import Hover from './hover'
+import {validateName} from '../../../../spec/types'
 import {Logo} from './logo'
 
 export function JoinCard(props: {
@@ -18,6 +19,9 @@ export function JoinCard(props: {
 
     setProcess: (process: string) => void
 }) {
+    const roomError = validateName(props.room)
+    const userError = validateName(props.user)
+
     return (
         <Card className="w-full max-w-sm shadow-none">
             <CardHeader className="mb-4">
@@ -31,7 +35,14 @@ export function JoinCard(props: {
                     <div className="grid gap-2">
                         <Label htmlFor="room">Room</Label>
                         <div className="flex w-full max-w-sm items-center gap-2">
-                            <Input id="room" type="text" value={props.room} onChange={props.onRoomChange} required />
+                            <Input
+                                id="room"
+                                type="text"
+                                value={props.room}
+                                onChange={props.onRoomChange}
+                                aria-invalid={!!roomError}
+                                required
+                            />
 
                             <Hover message="Regenerate room">
                                 <Button variant="outline" onClick={props.onRoomGenerate}>
@@ -39,12 +50,20 @@ export function JoinCard(props: {
                                 </Button>
                             </Hover>
                         </div>
+                        {roomError && <p className="text-sm text-destructive">{roomError}</p>}
                     </div>
 
                     <div className="grid gap-2">
                         <Label htmlFor="user">User</Label>
                         <div className="flex w-full max-w-sm items-center gap-2">
-                            <Input id="user" type="text" value={props.user} onChange={props.onUserChange} required />
+                            <Input
+                                id="user"
+                                type="text"
+                                value={props.user}
+                                onChange={props.onUserChange}
+                                aria-invalid={!!userError}
+                                required
+                            />
 
                             <Hover message="Regenerate user">
                                 <Button variant="outline" onClick={props.onUserGenerate}>
@@ -52,11 +71,12 @@ export function JoinCard(props: {
                                 </Button>
                             </Hover>
                         </div>
+                        {userError && <p className="text-sm text-destructive">{userError}</p>}
                     </div>
                 </div>
             </CardContent>
             <CardFooter className="flex-col gap-2">
-                <Button className="w-full" onClick={() => props.setProcess('ROOM')} disabled={!props.room || !props.user}>
+                <Button className="w-full" onClick={() => props.setProcess('ROOM')} disabled={!!roomError || !!userError}>
                     <ArrowRightCircle /> Join
                 </Button>
             </CardFooter>

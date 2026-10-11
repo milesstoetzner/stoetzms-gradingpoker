@@ -439,6 +439,11 @@ io.on('connection', socket => {
     function handleUnexpected(error: unknown) {
         if (error instanceof TooManyRequests) return emitError(error.message)
 
+        if (parser.isInvalidInput(error)) {
+            const issue = error.issues[0]
+            return emitError(`Invalid ${issue?.path.join('.') || 'input'}: ${issue?.message ?? 'unknown'}`)
+        }
+
         console.log(error)
 
         if (socket.connected) {

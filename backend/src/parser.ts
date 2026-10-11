@@ -1,10 +1,18 @@
-import * as z from "zod/v4";
-import {Ack, JoinRoom, RemoveUser, SetVote} from "../../spec/types";
+import * as z from 'zod/v4'
+import {Ack, BALLOT_VALUES, JoinRoom, RemoveUser, SetVote, validateName} from '../../spec/types'
+
+const _name = z
+    .string()
+    .trim()
+    .superRefine((it, ctx) => {
+        const error = validateName(it)
+        if (error) ctx.addIssue({code: 'custom', message: error})
+    })
 
 const _joinRoom = z.object({
-    room:  z.string(),
-    user: z.string(),
-    seed: z.boolean().optional()
+    room: _name,
+    user: _name,
+    seed: z.boolean().optional(),
 })
 
 export function joinRoom(input: any): JoinRoom {
@@ -12,7 +20,7 @@ export function joinRoom(input: any): JoinRoom {
 }
 
 const _setVote = z.object({
-    vote: z.string(),
+    vote: z.string().refine(it => BALLOT_VALUES.includes(it), 'Unknown vote'),
 })
 
 export function setVote(input: any): SetVote {
@@ -20,7 +28,7 @@ export function setVote(input: any): SetVote {
 }
 
 const _removeUser = z.object({
-    user: z.string(),
+    user: _name,
 })
 
 export function removeUser(input: any): RemoveUser {
@@ -28,6 +36,10 @@ export function removeUser(input: any): RemoveUser {
 }
 
 export function ack(input: any): input is Ack {
-    if (typeof input !== "function") throw new Error(`${input} is not a function`)
+    if (typeof input !== 'function') throw new Error(`${input} is not a function`)
     return true
+}
+
+export function isInvalidInput(error: unknown): error is z.ZodError {
+    return error instanceof z.ZodError
 }

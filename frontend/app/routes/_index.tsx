@@ -119,7 +119,7 @@ export default function Index() {
 
             {process === 'ROOM' ? (
                 <div className="flex w-full max-w-6xl flex-col gap-6">
-                    <RoomCard room={room} user={user} setProcess={setProcess} />
+                    <RoomCard room={room.trim()} user={user.trim()} setProcess={setProcess} />
                 </div>
             ) : null}
         </div>
