@@ -478,11 +478,16 @@ io.on('connection', socket => {
         const init: Room = {
             hidden: room.hidden,
             users: room.users,
-            votes: room.hidden ? {} : room.votes,
+            votes: room.hidden ? ownVote(room) : room.votes,
             voted: room.voted
         }
         console.log('server', socket.data.id, 'emit', ServerEvents.INIT_STATE, config.debug ? init : HIDDEN)
         socket.emit(ServerEvents.INIT_STATE, init)
+    }
+
+    function ownVote(room: Room) {
+        const vote = socket.data.user ? room.votes[socket.data.user] : undefined
+        return vote === undefined ? {} : {[socket.data.user!]: vote}
     }
 
     async function closeRoom() {

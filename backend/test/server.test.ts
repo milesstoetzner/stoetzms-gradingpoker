@@ -124,6 +124,23 @@ describe.each(persistencies)('server (%s)', persistency => {
         expect(alice.notifications).toContain('Already joined a room ...')
     })
 
+    test('own vote survives a refresh while votes are hidden', async () => {
+        const room = unique('room')
+        const alice = server.client()
+        const bob = server.client()
+        await join(alice, room, 'alice')
+        await join(bob, room, 'bob')
+        await ack(alice, ClientEvents.SET_VOTE, {vote: '1.7'})
+        await ack(bob, ClientEvents.SET_VOTE, {vote: '3.0'})
+
+        const state = next<Room>(alice, ServerEvents.INIT_STATE)
+        await ack(alice, ClientEvents.INIT_STATE)
+        const room_ = await state
+        expect(room_.hidden).toBe(true)
+        expect(room_.votes).toEqual({alice: '1.7'})
+        expect(room_.voted).toEqual({alice: true, bob: true})
+    })
+
     test('closing a room notifies everyone', async () => {
         const room = unique('room')
         const alice = server.client()
