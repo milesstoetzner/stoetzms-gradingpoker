@@ -8,7 +8,7 @@ BACKEND_IMAGE=$REPO:backend-$TAG
 FRONTEND_IMAGE=$REPO:frontend-$TAG
 
 docker build -t $BACKEND_IMAGE -f ./backend/Dockerfile .
-docker push $$BACKEND_IMAGE
+docker push $BACKEND_IMAGE
 
 docker build -t $FRONTEND_IMAGE -f ./frontend/Dockerfile .
 docker push $FRONTEND_IMAGE
