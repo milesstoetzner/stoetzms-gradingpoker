@@ -1,9 +1,12 @@
-import {Lock, Persistency, RoomGone} from "./types";
-import {Room, User, Votes} from "../../../spec/types";
+import {randomUUID} from 'node:crypto'
+import {Lock, Persistency, RoomData, RoomGone, Seed} from './types'
+import {User, Votes} from '../../../spec/types'
 import {Mutex, MutexInterface, withTimeout} from 'async-mutex'
 
 type DataMemory = {
     [room: string]: {
+        id: string
+        version: number
         hidden: boolean
         users: User[]
         votes: Votes
@@ -65,8 +68,10 @@ export class PersistencyMemory implements Persistency {
         if (!(await this.hasRoom(room))) throw new RoomGone()
     }
 
-    async addRoom(room: string, seed?: Room) {
+    async addRoom(room: string, seed?: Seed) {
         this.data[room] = {
+            id: randomUUID(),
+            version: 0,
             hidden: seed?.hidden ?? true,
             users: seed?.users || [],
             votes: seed?.votes || {},
@@ -74,19 +79,20 @@ export class PersistencyMemory implements Persistency {
 
     }
 
-    async getRoom(room: string): Promise<Room> {
+    async bump(room: string) {
+        this.data[room].version++
+    }
+
+    async getRoom(room: string): Promise<RoomData> {
         const data = this.data[room]
         if (!data) throw new Error(`Room ${room} does not exist ...`)
         return {
+            id: data.id,
+            version: data.version,
             hidden: data.hidden,
             users: [...data.users],
             votes: {...data.votes},
-            voted: Object.fromEntries(Object.keys(data.votes).map(user => [user, true]))
         }
-    }
-
-    async getVotes(room: string) {
-        return (await this.getRoom(room)).votes
     }
 
     async deleteRoom(room: string) {

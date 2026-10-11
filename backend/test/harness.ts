@@ -1,9 +1,13 @@
 import {ChildProcess, spawn} from 'node:child_process'
 import {createServer} from 'node:net'
 import {io, Socket} from 'socket.io-client'
-import {ClientToServerEvents, Notification, ServerEvents, ServerToClientEvents} from '../../spec/types'
+import {ClientToServerEvents, Notification, RoomState, ServerEvents, ServerToClientEvents} from '../../spec/types'
 
-export type Client = Socket<ServerToClientEvents, ClientToServerEvents> & {notifications: string[]}
+export type Client = Socket<ServerToClientEvents, ClientToServerEvents> & {
+    notifications: string[]
+    // Latest room state, applied like the frontend does (newer versions only)
+    state?: RoomState
+}
 
 // Persistencies to test against: memory always, redis if TEST_REDIS_PORT is set
 export const persistencies = ['memory', ...(process.env.TEST_REDIS_PORT ? ['redis'] : [])]
@@ -63,6 +67,10 @@ export class TestServer {
             reconnection: false,
         }) as Client
         client.notifications = []
+        client.on(ServerEvents.ROOM_STATE, (data: RoomState) => {
+            if (client.state && client.state.id === data.id && client.state.version > data.version) return
+            client.state = data
+        })
         client.on(ServerEvents.SHOW_NOTIFICATION, (data: Notification, ack) => {
             client.notifications.push(data.message)
             if (ack) ack({ok: true})
@@ -111,4 +119,16 @@ export function sleep(ms: number) {
 
 export function unique(prefix: string) {
     return `${prefix}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+// Requests the current state from the server (as seen by the given client)
+export async function fetchState(client: Client): Promise<RoomState> {
+    // The server sends the requested state right before the ack, trailing broadcasts might arrive earlier
+    let last: RoomState | undefined
+    const listener = (data: RoomState) => (last = data)
+    client.on(ServerEvents.ROOM_STATE, listener)
+    await ack(client, 'init-state')
+    client.off(ServerEvents.ROOM_STATE, listener)
+    if (!last) throw new Error('No state received')
+    return last
 }

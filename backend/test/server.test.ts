@@ -1,6 +1,6 @@
-import {afterAll, beforeAll, describe, expect, test} from 'vitest'
-import {ClientEvents, Room, ServerEvents} from '../../spec/types'
-import {ack, join, next, persistencies, sleep, TestServer, unique} from './harness'
+import {afterAll, beforeAll, describe, expect, test, vi} from 'vitest'
+import {BALLOT_VALUES, ClientEvents, ServerEvents} from '../../spec/types'
+import {ack, Client, fetchState, join, next, persistencies, sleep, TestServer, unique} from './harness'
 
 describe.each(persistencies)('server (%s)', persistency => {
     const server = new TestServer(persistency)
@@ -15,14 +15,32 @@ describe.each(persistencies)('server (%s)', persistency => {
 
         expect(await join(alice, room, 'alice')).toEqual({ok: true})
         expect(await join(bob, room, 'bob')).toEqual({ok: true})
+        await vi.waitFor(() => expect(alice.state?.users.map(it => it.name).sort()).toEqual(['alice', 'bob']))
 
-        const voted = next(bob, ServerEvents.SET_VOTED)
         expect(await ack(alice, ClientEvents.SET_VOTE, {vote: '1.3'})).toEqual({ok: true})
-        expect(await voted).toEqual({user: 'alice'})
+        await vi.waitFor(() => expect(bob.state?.voted).toEqual({alice: true}))
+        expect(bob.state?.votes).toEqual({})
+        expect(alice.state?.votes).toEqual({alice: '1.3'})
 
-        const shown = next(bob, ServerEvents.SHOW_VOTES)
         expect(await ack(alice, ClientEvents.SHOW_VOTES)).toEqual({ok: true})
-        expect(await shown).toEqual({alice: '1.3'})
+        await vi.waitFor(() => expect(bob.state?.votes).toEqual({alice: '1.3'}))
+        expect(bob.state?.hidden).toBe(false)
+    })
+
+    test('voting hides votes again', async () => {
+        const room = unique('room')
+        const alice = server.client()
+        const bob = server.client()
+        await join(alice, room, 'alice')
+        await join(bob, room, 'bob')
+        await ack(alice, ClientEvents.SET_VOTE, {vote: '1.3'})
+        await ack(alice, ClientEvents.SHOW_VOTES)
+        await vi.waitFor(() => expect(bob.state?.hidden).toBe(false))
+
+        await ack(bob, ClientEvents.SET_VOTE, {vote: '2.0'})
+        await vi.waitFor(() => expect(alice.state?.hidden).toBe(true))
+        expect(alice.state?.votes).toEqual({})
+        expect(alice.state?.voted).toEqual({alice: true, bob: true})
     })
 
     test('removing a user removes the target, not the requester', async () => {
@@ -35,17 +53,15 @@ describe.each(persistencies)('server (%s)', persistency => {
         await join(bob, room, 'bob')
         await join(carol, room, 'carol')
         await ack(alice, ClientEvents.SET_VOTE, {vote: '2.0'})
+        await ack(bob, ClientEvents.SET_VOTE, {vote: '3.0'})
 
         const disconnected = next(bob, 'disconnect')
         expect(await ack(alice, ClientEvents.REMOVE_USER, {user: 'bob'})).toEqual({ok: true})
         await disconnected
         expect(bob.notifications).toContain('You have been removed by alice ...')
 
-        const state = next<Room>(carol, ServerEvents.INIT_STATE)
-        await ack(carol, ClientEvents.INIT_STATE)
-        const room_ = await state
-        expect(room_.users.map(it => it.name).sort()).toEqual(['alice', 'carol'])
-        expect(room_.voted).toEqual({alice: true})
+        await vi.waitFor(() => expect(carol.state?.users.map(it => it.name).sort()).toEqual(['alice', 'carol']))
+        expect(carol.state?.voted).toEqual({alice: true})
     })
 
     test('rate limited requests are rejected and not applied', async () => {
@@ -61,15 +77,13 @@ describe.each(persistencies)('server (%s)', persistency => {
         // Limited: no ack, no state change
         await expect(ack(alice, ClientEvents.SET_VOTE, {vote: '1.0'})).rejects.toThrow()
         expect(alice.notifications).toContain('Too many requests ...')
-
-        const state = next<Room>(bob, ServerEvents.INIT_STATE)
-        await ack(bob, ClientEvents.INIT_STATE)
-        expect((await state).voted).toEqual({})
+        expect((await fetchState(bob)).voted).toEqual({})
     })
 
     test.each([
         ['room', '*'],
         ['room', 'a:b'],
+        ['room', 'a{b}'],
         ['room', '   '],
         ['room', 'x'.repeat(65)],
         ['user', 'evil*'],
@@ -78,7 +92,6 @@ describe.each(persistencies)('server (%s)', persistency => {
         const client = server.client()
         const input = {room: unique('room'), user: 'alice', [field]: value}
         await expect(join(client, input.room, input.user)).rejects.toThrow()
-        await sleep(50)
         expect(client.notifications[0]).toMatch(new RegExp(`^Invalid ${field}`))
     })
 
@@ -86,34 +99,64 @@ describe.each(persistencies)('server (%s)', persistency => {
         const alice = server.client()
         await join(alice, unique('room'), 'alice')
         await expect(ack(alice, ClientEvents.SET_VOTE, {vote: 'x'.repeat(10000)})).rejects.toThrow()
-        await sleep(50)
         expect(alice.notifications).toContain('Invalid vote: Unknown vote')
     })
 
     test('names are trimmed', async () => {
-        const room = unique('room')
         const alice = server.client()
-        const state = next<Room>(alice, ServerEvents.INIT_STATE)
-        await join(alice, `  ${room} `, '  alice ')
-        expect((await state).users.map(it => it.name)).toEqual(['alice'])
+        await join(alice, `  ${unique('room')} `, '  alice ')
+        expect(alice.state?.users.map(it => it.name)).toEqual(['alice'])
     })
 
     test('concurrent joins with the same name admit exactly one user', async () => {
         const room = unique('room')
-
-        // Warm up the room lock with a few operations first
         const warm = server.client()
         await join(warm, room, 'warm')
-        await Promise.all([1, 2, 3].map(() => ack(warm, ClientEvents.HIDE_VOTES)))
 
         const clients = Array.from({length: 10}, () => server.client())
         const results = await Promise.allSettled(clients.map(it => join(it, room, 'same')))
         expect(results.filter(it => it.status === 'fulfilled')).toHaveLength(1)
 
-        await sleep(100)
-        const state = next<Room>(warm, ServerEvents.INIT_STATE)
-        await ack(warm, ClientEvents.INIT_STATE)
-        expect((await state).users.filter(it => it.name === 'same')).toHaveLength(1)
+        const state = await fetchState(warm)
+        expect(state.users.filter(it => it.name === 'same')).toHaveLength(1)
+    })
+
+    test('concurrent joins with different names admit everyone', async () => {
+        const room = unique('room')
+        const clients = Array.from({length: 20}, () => server.client())
+        await Promise.all(clients.map((it, i) => join(it, room, `user ${i}`)))
+
+        const state = await fetchState(clients[0]!)
+        expect(state.users).toHaveLength(20)
+    })
+
+    test('clients converge to the server state under concurrent changes', async () => {
+        const room = unique('room')
+        const clients: Client[] = Array.from({length: 8}, () => server.client())
+        for (const [i, client] of clients.entries()) await join(client, room, `user ${i}`)
+
+        // Every client concurrently votes, shows and hides in random order
+        await Promise.all(
+            clients.map(async client => {
+                for (let i = 0; i < 6; i++) {
+                    const r = Math.random()
+                    if (r < 0.5) {
+                        const vote = BALLOT_VALUES[Math.floor(Math.random() * BALLOT_VALUES.length)]
+                        await ack(client, ClientEvents.SET_VOTE, {vote})
+                    } else if (r < 0.75) await ack(client, ClientEvents.SHOW_VOTES)
+                    else await ack(client, ClientEvents.HIDE_VOTES)
+                }
+            })
+        )
+
+        await sleep(200)
+        const truth = await fetchState(clients[0]!)
+        for (const client of clients) {
+            expect(client.state?.version).toBe(truth.version)
+            expect(client.state?.hidden).toBe(truth.hidden)
+            expect(client.state?.voted).toEqual(truth.voted)
+            expect(client.state?.users).toEqual(truth.users)
+        }
     })
 
     test('a socket cannot join twice', async () => {
@@ -133,15 +176,13 @@ describe.each(persistencies)('server (%s)', persistency => {
         await ack(alice, ClientEvents.SET_VOTE, {vote: '1.7'})
         await ack(bob, ClientEvents.SET_VOTE, {vote: '3.0'})
 
-        const state = next<Room>(alice, ServerEvents.INIT_STATE)
-        await ack(alice, ClientEvents.INIT_STATE)
-        const room_ = await state
-        expect(room_.hidden).toBe(true)
-        expect(room_.votes).toEqual({alice: '1.7'})
-        expect(room_.voted).toEqual({alice: true, bob: true})
+        const state = await fetchState(alice)
+        expect(state.hidden).toBe(true)
+        expect(state.votes).toEqual({alice: '1.7'})
+        expect(state.voted).toEqual({alice: true, bob: true})
     })
 
-    test('closing a room notifies everyone', async () => {
+    test('closing a room notifies and disconnects everyone', async () => {
         const room = unique('room')
         const alice = server.client()
         const bob = server.client()
@@ -149,7 +190,15 @@ describe.each(persistencies)('server (%s)', persistency => {
         await join(bob, room, 'bob')
 
         const closed = next(bob, ServerEvents.CLOSE_ROOM)
-        await ack(alice, ClientEvents.CLOSE_ROOM)
+        const disconnected = next(bob, 'disconnect')
+        await expect(ack(alice, ClientEvents.CLOSE_ROOM)).rejects.toThrow()
         await closed
+        await disconnected
+
+        // The room starts from scratch afterwards
+        const carol = server.client()
+        await join(carol, room, 'carol')
+        expect(carol.state?.users.map(it => it.name)).toEqual(['carol'])
+        expect(carol.state?.voted).toEqual({})
     })
 })

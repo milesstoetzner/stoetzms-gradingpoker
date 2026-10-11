@@ -1,8 +1,9 @@
-import Redis from "ioredis";
-import {Room, Votes} from "../../../spec/types";
+import {randomUUID} from 'node:crypto'
+import Redis from 'ioredis'
+import {Votes} from '../../../spec/types'
 import * as config from "../config";
 import {Mutex, MutexInterface, withTimeout} from 'async-mutex'
-import {Lock, Persistency, RoomGone} from "./types";
+import {Lock, Persistency, RoomData, RoomGone, Seed} from './types'
 
 
 export class PersistencyRedis implements Persistency {
@@ -73,7 +74,9 @@ export class PersistencyRedis implements Persistency {
         if (!(await this.hasRoom(room))) throw new RoomGone()
     }
 
-    async addRoom(room: string, seed?: Room) {
+    async addRoom(room: string, seed?: Seed) {
+        await this.redis.set(concat('room', room, 'id'), randomUUID())
+        await this.redis.set(concat('room', room, 'version'), 0)
         await this.setHidden(room, true)
 
         if (seed) {
@@ -89,28 +92,21 @@ export class PersistencyRedis implements Persistency {
         }
     }
 
-    async getRoom(room: string): Promise<Room> {
-        const votes = await this.getVotes(room)
+    async bump(room: string) {
+        await this.redis.incr(concat('room', room, 'version'))
+    }
 
-        const data: Room = {
-            hidden: await this.redis.get(concatHiddenKey(room)) === "true",
+    async getRoom(room: string): Promise<RoomData> {
+        return {
+            id: (await this.redis.get(concat('room', room, 'id'))) ?? '',
+            version: Number(await this.redis.get(concat('room', room, 'version'))),
+            hidden: (await this.redis.get(concatHiddenKey(room))) === 'true',
             users: Object.entries(await this.collect(concatUserKey(room, any))).map(([name, avatar]) => ({
                 name,
-                avatar
+                avatar,
             })),
-            votes,
-            voted: Object.fromEntries(Object.keys(votes).map(user => [user, true])),
+            votes: await this.getVotes(room),
         }
-
-        if (Object.keys(data.votes).length !== Object.keys(data.voted).length) {
-            throw new Error(`Room ${room} is missing votes ...`)
-        }
-
-        if (Object.keys(data.users).length < Object.keys(data.voted).length) {
-            throw new Error(`Room ${room} is missing users ...`)
-        }
-
-        return data
     }
 
     async getVotes(room: string): Promise<Votes> {

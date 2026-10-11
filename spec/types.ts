@@ -13,20 +13,11 @@ export enum ClientEvents {
 }
 
 export enum ServerEvents {
-    INIT_STATE = 'init-state',
+    // Full room state after every change, see RoomState
+    ROOM_STATE = 'room-state',
     CLOSE_ROOM = 'close-room',
 
-    ADD_USER = 'add-user',
-    REMOVE_USER = 'remove-user',
-
-    SET_VOTED = 'set-voted',
-    SHOW_VOTES = 'show-votes',
-    HIDE_VOTES = 'hide-votes',
-
     SHOW_NOTIFICATION = 'show-notification',
-
-    // fix
-    RECONNECT = 'reconnect',
 }
 
 export type JoinRoom = {
@@ -35,7 +26,16 @@ export type JoinRoom = {
     seed?: boolean
 }
 
-export type Room = {
+/**
+ * Full state of a room. The server sends it after every change, so clients never apply deltas.
+ *
+ * - `id` changes when a room is recreated (e.g., closed and joined again).
+ * - `version` increases with every change of the room; clients ignore states older than the one they have.
+ * - `votes` is empty while votes are hidden, except for the recipient's own vote in states sent to them directly.
+ */
+export type RoomState = {
+    id: string
+    version: number
     hidden: boolean
     users: User[]
     votes: Votes
@@ -48,12 +48,6 @@ export type Voted = { [user: string]: boolean }
 export type SetVote = {
     vote: string
 }
-
-export type SetVoted = {
-    user: string
-}
-
-export type AddUser = User
 
 export type RemoveUser = {
     user: string
@@ -109,17 +103,8 @@ export interface ClientToServerEvents {
 }
 
 export interface ServerToClientEvents {
-    [ServerEvents.INIT_STATE]: (data: Room) => void;
+    [ServerEvents.ROOM_STATE]: (data: RoomState) => void;
     [ServerEvents.CLOSE_ROOM]: () => void;
 
-    [ServerEvents.ADD_USER]: (data: AddUser) => void;
-    [ServerEvents.REMOVE_USER]: (data: RemoveUser) => void;
-
-    [ServerEvents.SET_VOTED]: (data: SetVoted) => void;
-    [ServerEvents.SHOW_VOTES]: (data: Votes) => void;
-    [ServerEvents.HIDE_VOTES]: () => void;
-
     [ServerEvents.SHOW_NOTIFICATION]: (data: Notification, ack?: Ack) => void;
-
-    [ServerEvents.RECONNECT]: (attempt: number) => void;
 }

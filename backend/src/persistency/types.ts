@@ -1,4 +1,21 @@
-import {Room, Votes} from "../../../spec/types";
+import {User, Votes} from '../../../spec/types'
+
+/**
+ * Internal state of a room (all votes, even if hidden).
+ */
+export type RoomData = {
+    id: string
+    version: number
+    hidden: boolean
+    users: User[]
+    votes: Votes
+}
+
+export type Seed = {
+    hidden: boolean
+    users: User[]
+    votes: Votes
+}
 
 export class RoomGone extends Error {
     constructor() {
@@ -35,11 +52,13 @@ export interface Persistency {
 
     assertRoom(room: string): Promise<void>
 
-    addRoom(room: string, seed?: Room): Promise<void>
+    // Creates the room with a new id and version 0
+    addRoom(room: string, seed?: Seed): Promise<void>
 
-    getRoom(room: string): Promise<Room>
+    // Increments the version of the room, call once per change
+    bump(room: string): Promise<void>
 
-    getVotes(room: string): Promise<Votes>
+    getRoom(room: string): Promise<RoomData>
 
     deleteRoom(room: string): Promise<void>
 }

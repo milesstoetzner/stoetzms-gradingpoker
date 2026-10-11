@@ -11,18 +11,16 @@ import Share from './share'
 import Hidden from './hidden'
 import {io, Socket} from 'socket.io-client'
 import {
-    AddUser,
     ClientEvents,
     ClientToServerEvents,
-    Room,
-    RemoveUser,
+    RoomState,
     ServerEvents,
     ServerToClientEvents,
     User,
     Votes,
     Notification,
     Response,
-    HIDDEN, Ack, Voted, SetVoted,
+    HIDDEN, Ack, Voted,
 } from '../../../../spec/types'
 import Error from './error'
 import {useLocation, useNavigationType, useSearchParams} from '@remix-run/react'
@@ -58,6 +56,9 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
     const [joined, setJoined] = useState(false)
     const [error, setError] = useDebounce<string | undefined>(undefined, 500)
 
+    // Latest applied room state, older states (e.g., delayed broadcasts) are ignored
+    const latest = React.useRef<{id: string; version: number}>()
+
     React.useEffect(() => {
         let id: string
         socket.connect()
@@ -79,18 +80,6 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
             })
         })
 
-        // TODO: will the socket id change?! is this event even needed?
-        socket.on(ServerEvents.RECONNECT, () => {
-            console.log('socket', id, 'on', 'reconnect')
-            setConnected(true)
-            setError(undefined)
-
-            console.log('socket', id, 'on', ClientEvents.INIT_STATE)
-            socket.emit(ClientEvents.INIT_STATE, (data: Response) => {
-                console.log('socket', socket.id, 'ack', ClientEvents.INIT_STATE, data)
-            })
-        })
-
         socket.on('disconnect', reason => {
             console.log('socket', id, 'on', 'disconnect', reason)
             setConnected(false)
@@ -106,53 +95,28 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
             console.log('socket', id, 'on', 'connect_error', error)
         })
 
-        socket.on(ServerEvents.INIT_STATE, (data: Room) => {
-            console.log('socket', id, 'on', ServerEvents.INIT_STATE, debug ? data : HIDDEN)
+        socket.on(ServerEvents.ROOM_STATE, (data: RoomState) => {
+            console.log('socket', id, 'on', ServerEvents.ROOM_STATE, debug ? data : data.version)
+
+            const current = latest.current
+            if (current && current.id === data.id && current.version > data.version) return
+            latest.current = {id: data.id, version: data.version}
 
             setUsers(data.users)
             setVotes(data.votes)
             setVoted(data.voted)
             setHidden(data.hidden)
 
-            setVote(data.votes[props.user] ?? '')
+            // Own vote is only included in states sent directly to us (or if votes are shown)
+            const own = data.votes[props.user]
+            if (own !== undefined) setVote(own)
+            else if (!data.voted[props.user]) setVote('')
         })
 
         socket.on(ServerEvents.CLOSE_ROOM, () => {
             console.log('socket', id, 'on', ServerEvents.CLOSE_ROOM)
             toast('Room closed ...')
             onLocalBack()
-        })
-
-        socket.on(ServerEvents.ADD_USER, (data: AddUser) => {
-            console.log('socket', id, 'on', ServerEvents.ADD_USER, debug ? data : HIDDEN)
-            setUsers(prev => [...prev, data])
-        })
-
-        socket.on(ServerEvents.REMOVE_USER, (data: RemoveUser) => {
-            console.log('socket', id, 'on', ServerEvents.REMOVE_USER, debug ? data : HIDDEN)
-            setUsers(prev => prev.filter(it => it.name !== data.user))
-            setVoted(prev => omit(prev, data.user))
-            setVotes(prev => omit(prev, data.user))
-        })
-
-        socket.on(ServerEvents.SHOW_VOTES, (data: Votes) => {
-            console.log('socket', id, 'on', ServerEvents.SHOW_VOTES, debug ? data : HIDDEN)
-            setVotes(data)
-            setHidden(false)
-        })
-
-        socket.on(ServerEvents.SET_VOTED, (data: SetVoted) => {
-            console.log('socket', id, 'on', ServerEvents.SET_VOTED, debug ? data : HIDDEN)
-            setVoted(prev => {
-                prev[data.user] = true
-                return {...prev}
-            })
-        })
-
-        socket.on(ServerEvents.HIDE_VOTES, () => {
-            console.log('socket', id, 'on', ServerEvents.HIDE_VOTES)
-            setHidden(true)
-            setVotes({})
         })
 
         socket.on(ServerEvents.SHOW_NOTIFICATION, (data: Notification, ack?: Ack) => {
@@ -175,13 +139,8 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
     const [presentation, setPresentation] = React.useState<boolean>(false)
 
     function onVoteChange(vote: string) {
-        onLocalHideVotes()
-
+        // Voting hides votes on the server, the room state follows
         setVote(vote)
-        setVoted(prev => {
-            prev[props.user] = true
-            return {...prev}
-        })
 
         const data = {vote}
         console.log('socket', socket.id, 'emit', ClientEvents.SET_VOTE, debug ? data : HIDDEN)
@@ -191,7 +150,6 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
     }
 
     function onLocalShowVotes() {
-        setHidden(false)
         console.log('socket', socket.id, 'emit', ClientEvents.SHOW_VOTES)
         socket.emit(ClientEvents.SHOW_VOTES, (data: Response) => {
             console.log('socket', socket.id, 'ack', ClientEvents.SHOW_VOTES, data)
@@ -199,8 +157,6 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
     }
 
     function onLocalHideVotes() {
-        setHidden(true)
-        setVotes({})
         console.log('socket', socket.id, 'emit', ClientEvents.HIDE_VOTES)
         socket.emit(ClientEvents.HIDE_VOTES, (data: Response) => {
             console.log('socket', socket.id, 'ack', ClientEvents.HIDE_VOTES, data)
@@ -214,12 +170,8 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
 
     function onLocalCloseRoom() {
         console.log('socket', socket.id, 'emit', ClientEvents.CLOSE_ROOM)
-        socket.emit(ClientEvents.CLOSE_ROOM, (data: Response) => {
-            console.log('socket', socket.id, 'ack', ClientEvents.CLOSE_ROOM, data)
-            if (!data.ok) return
-            toast('Room closed ...')
-            onLocalBack()
-        })
+        // The server answers with close room to everyone (including us) instead of an ack
+        socket.emit(ClientEvents.CLOSE_ROOM, () => {})
     }
 
     function onRemoveUser(user: string) {
@@ -436,10 +388,4 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
             )}
         </div>
     )
-}
-
-function omit<T extends object>(data: T, key: string): T {
-    const copy = {...data}
-    delete copy[key as keyof T]
-    return copy
 }

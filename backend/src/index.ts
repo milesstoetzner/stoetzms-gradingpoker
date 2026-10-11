@@ -4,7 +4,7 @@ import {
     ClientEvents,
     ClientToServerEvents,
     HIDDEN,
-    Room,
+    RoomState,
     ServerEvents,
     ServerToClientEvents,
     User,
@@ -15,7 +15,7 @@ import * as config from './config'
 import {RateLimiter} from 'limiter'
 import * as parser from './parser'
 import {load} from './persistency'
-import {RoomGone} from './persistency/types'
+import {RoomData, RoomGone} from './persistency/types'
 
 const persistency = load()
 await persistency.init()
@@ -45,6 +45,22 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, {}, SocketData
 io.on('error', (err: Error) => {
     console.log('server', 'on', 'error', err)
 })
+
+/**
+ * Converts the internal room into the state sent to clients: votes are only included if they are shown, except for
+ * the vote of the recipient (if given).
+ */
+function toState(data: RoomData, recipient?: string): RoomState {
+    const own = recipient === undefined ? undefined : data.votes[recipient]
+    return {
+        id: data.id,
+        version: data.version,
+        hidden: data.hidden,
+        users: data.users,
+        votes: !data.hidden ? data.votes : own === undefined ? {} : {[recipient!]: own},
+        voted: Object.fromEntries(Object.keys(data.votes).map(user => [user, true])),
+    }
+}
 
 class TooManyRequests extends Error {
     constructor() {
@@ -102,7 +118,7 @@ io.on('connection', socket => {
     }
 
     /**
-     * Runs the function while holding the lock of the room.
+     * Runs the function while holding the lock of the room. Changes must call persistency.bump once.
      */
     async function locked<T>(room: string, fn: () => Promise<T>): Promise<T> {
         const lock = await persistency.lock(room)
@@ -154,18 +170,13 @@ io.on('connection', socket => {
             // Update state
             await persistency.addUser(data.room, user.name, user.avatar)
             await persistency.setHidden(data.room, true)
+            await persistency.bump(data.room)
 
             // Join broadcast
             socket.join(data.room)
 
-            // Emit init state
-            emitInitState(await persistency.getRoom(data.room))
-
-            // Emit add user and hide votes to room
-            console.log('server', data.room, 'emit', ServerEvents.ADD_USER, config.debug ? user : HIDDEN)
-            socket.to(data.room).emit(ServerEvents.ADD_USER, user)
-            console.log('server', data.room, 'emit', ServerEvents.HIDE_VOTES)
-            socket.to(data.room).emit(ServerEvents.HIDE_VOTES)
+            // Emit state
+            emitState({room: data.room, user: data.user}, await persistency.getRoom(data.room))
         })
     })
 
@@ -176,13 +187,16 @@ io.on('connection', socket => {
             // Assert room
             await persistency.assertRoom(me.room)
 
-            // Update state
-            await persistency.setVote(me.room, me.user, data.vote)
+            // Assert user (might have been removed meanwhile)
+            if (!(await persistency.hasUser(me.room, me.user))) return emitRoomGone()
 
-            // Emit set vote to room
-            const emit = {user: me.user}
-            console.log('server', me.room, 'emit', ServerEvents.SET_VOTED, config.debug ? emit : HIDDEN)
-            socket.to(me.room).emit(ServerEvents.SET_VOTED, emit)
+            // Update state (voting hides votes)
+            await persistency.setVote(me.room, me.user, data.vote)
+            await persistency.setHidden(me.room, true)
+            await persistency.bump(me.room)
+
+            // Emit state
+            emitState(me, await persistency.getRoom(me.room))
         })
     })
 
@@ -191,10 +205,8 @@ io.on('connection', socket => {
             await persistency.assertRoom(me.room)
 
             await persistency.setHidden(me.room, false)
-            const data = await persistency.getVotes(me.room)
-
-            console.log('server', me.room, 'emit', ServerEvents.SHOW_VOTES, config.debug ? data : HIDDEN)
-            io.to(me.room).emit(ServerEvents.SHOW_VOTES, data)
+            await persistency.bump(me.room)
+            emitState(me, await persistency.getRoom(me.room))
         })
     })
 
@@ -203,16 +215,15 @@ io.on('connection', socket => {
             await persistency.assertRoom(me.room)
 
             await persistency.setHidden(me.room, true)
-
-            console.log('server', me.room, 'emit', ServerEvents.HIDE_VOTES)
-            socket.to(me.room).emit(ServerEvents.HIDE_VOTES)
+            await persistency.bump(me.room)
+            emitState(me, await persistency.getRoom(me.room))
         })
     })
 
     onJoined(ClientEvents.INIT_STATE, async (_, me) => {
         return locked(me.room, async () => {
             await persistency.assertRoom(me.room)
-            emitInitState(await persistency.getRoom(me.room))
+            emitOwnState(me, await persistency.getRoom(me.room))
         })
     })
 
@@ -233,10 +244,9 @@ io.on('connection', socket => {
             // Manually cleanup broken user (the target's own disconnect handler might never run)
             await persistency.removeUser(me.room, data.user)
             await persistency.removeVote(me.room, data.user)
+            await persistency.bump(me.room)
 
-            const emit = {user: data.user}
-            console.log('server', me.room, 'emit', ServerEvents.REMOVE_USER, config.debug ? emit : HIDDEN)
-            io.to(me.room).emit(ServerEvents.REMOVE_USER, emit)
+            emitState(me, await persistency.getRoom(me.room))
         })
     })
 
@@ -247,12 +257,14 @@ io.on('connection', socket => {
             // Update state
             await persistency.deleteRoom(me.room)
 
-            // Emit close room to the others (this socket receives the ack and leaves by itself)
+            // Emit close room to room (including this socket)
             console.log('server', me.room, 'emit', ServerEvents.CLOSE_ROOM)
-            socket.to(me.room).emit(ServerEvents.CLOSE_ROOM)
+            io.to(me.room).emit(ServerEvents.CLOSE_ROOM)
 
-            // Disconnect the others by force
-            io.in(me.room).except(socket.id).disconnectSockets(true)
+            // Disconnect all sockets by force
+            io.in(me.room).disconnectSockets(true)
+
+            return false
         })
     })
 
@@ -273,11 +285,10 @@ io.on('connection', socket => {
                 // Update state
                 await persistency.removeUser(me.room, me.user)
                 await persistency.removeVote(me.room, me.user)
+                await persistency.bump(me.room)
 
-                // Emit remove user to room
-                const emit = {user: me.user}
-                console.log('server', me.room, 'emit', ServerEvents.REMOVE_USER, config.debug ? emit : HIDDEN)
-                io.to(me.room).emit(ServerEvents.REMOVE_USER, emit)
+                // Emit state to room
+                emitRoomState(me.room, await persistency.getRoom(me.room))
             })
         } catch (e) {
             handleUnexpected(e)
@@ -290,6 +301,24 @@ io.on('connection', socket => {
 
     async function limit() {
         if (!limiter.tryRemoveTokens(1)) throw new TooManyRequests()
+    }
+
+    // Sends the state to this socket (including its own vote) and to all other sockets in the room
+    function emitState(me: Me, room: RoomData) {
+        emitOwnState(me, room)
+        console.log('server', me.room, 'emit', ServerEvents.ROOM_STATE, room.version)
+        socket.to(me.room).emit(ServerEvents.ROOM_STATE, toState(room))
+    }
+
+    function emitOwnState(me: Me, room: RoomData) {
+        const state = toState(room, me.user)
+        console.log('server', socket.data.id, 'emit', ServerEvents.ROOM_STATE, config.debug ? state : HIDDEN)
+        socket.emit(ServerEvents.ROOM_STATE, state)
+    }
+
+    function emitRoomState(name: string, room: RoomData) {
+        console.log('server', name, 'emit', ServerEvents.ROOM_STATE, room.version)
+        io.to(name).emit(ServerEvents.ROOM_STATE, toState(room))
     }
 
     function emitRoomGone() {
@@ -321,22 +350,6 @@ io.on('connection', socket => {
             console.log('server', socket.data.id, 'emit', ServerEvents.SHOW_NOTIFICATION, config.debug ? emit : HIDDEN)
             socket.emit(ServerEvents.SHOW_NOTIFICATION, emit)
         }
-    }
-
-    function emitInitState(room: Room) {
-        const init: Room = {
-            hidden: room.hidden,
-            users: room.users,
-            votes: room.hidden ? ownVote(room) : room.votes,
-            voted: room.voted,
-        }
-        console.log('server', socket.data.id, 'emit', ServerEvents.INIT_STATE, config.debug ? init : HIDDEN)
-        socket.emit(ServerEvents.INIT_STATE, init)
-    }
-
-    function ownVote(room: Room) {
-        const vote = socket.data.user ? room.votes[socket.data.user] : undefined
-        return vote === undefined ? {} : {[socket.data.user!]: vote}
     }
 })
 
