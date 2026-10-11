@@ -68,6 +68,9 @@ spec:
       containers:
         - name: gradingpoker-frontend
           image: ghcr.io/milesstoetzner/stoetzms-gradingpoker:frontend-2a12706
+          env:
+            - name: STOETZMS_GRADING_POKER_IMPRESSUM_URL
+              value: https://www.uni-stuttgart.de/impressum
           ports:
             - name: http
               containerPort: 80

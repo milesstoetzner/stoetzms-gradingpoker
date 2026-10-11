@@ -27,6 +27,8 @@ export function Layout({children}: {children: React.ReactNode}) {
                 <meta name="theme-color" content="#171717" />
                 <Meta />
                 <Links />
+                {/* Runtime config, must run before the app modules (see app/lib/config.ts) */}
+                <script src="/config.js" />
             </head>
             <body>
                 {children}

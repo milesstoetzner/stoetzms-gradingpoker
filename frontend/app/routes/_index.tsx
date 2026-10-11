@@ -4,6 +4,7 @@ import React from 'react'
 import {RoomCard} from '../components/app/room'
 import randomName from '@scaleway/random-name'
 import {Toaster} from '../components/ui/sonner'
+import {config} from '../lib/config'
 
 import {useSearchParams} from '@remix-run/react'
 
@@ -13,6 +14,11 @@ export const meta: MetaFunction = () => {
 
 const KEY_ROOM = 'room'
 const KEY_USER = 'user'
+
+const legalLinks = [
+    {label: 'Impressum', href: config.impressumUrl},
+    {label: 'Privacy', href: config.privacyUrl},
+].filter((link): link is {label: string; href: string} => link.href !== undefined)
 
 export default function Index() {
     const [searchParams, setSearchParams] = useSearchParams()
@@ -96,14 +102,18 @@ export default function Index() {
                         setProcess={setProcess}
                     />
 
-                    <a
-                        href="https://www.uni-stuttgart.de/impressum"
-                        target="_blank"
-                        rel="noopener"
-                        className="text-sm text-neutral-500 mt-[-1rem] text-center"
-                    >
-                        Impressum
-                    </a>
+                    {legalLinks.length > 0 ? (
+                        <div className="flex justify-center gap-2 text-sm text-neutral-500 mt-[-1rem]">
+                            {legalLinks.map((link, index) => (
+                                <React.Fragment key={link.href}>
+                                    {index > 0 ? <span aria-hidden="true">·</span> : null}
+                                    <a href={link.href} target="_blank" rel="noopener">
+                                        {link.label}
+                                    </a>
+                                </React.Fragment>
+                            ))}
+                        </div>
+                    ) : null}
                 </div>
             ) : null}
 

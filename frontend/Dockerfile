@@ -14,5 +14,7 @@ LABEL org.opencontainers.image.source=https://github.com/milesstoetzner/stoetzms
 COPY --from=build /app/build/client /usr/share/nginx/html
 RUN rm /etc/nginx/conf.d/*
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY frontend/docker-entrypoint.d/40-gradingpoker-config.sh /docker-entrypoint.d/40-gradingpoker-config.sh
+RUN chmod +x /docker-entrypoint.d/40-gradingpoker-config.sh
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
