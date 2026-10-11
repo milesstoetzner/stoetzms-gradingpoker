@@ -5,30 +5,32 @@ import {
     ClientToServerEvents,
     HIDDEN,
     Room,
-    JoinRoom,
     ServerEvents,
     ServerToClientEvents,
-    SetVote,
-    User, RemoveUser
+    User,
 } from '../../spec/types'
 import {generateAvatar} from './utils'
 import {generateSeed} from './seed'
 import * as config from './config'
 import {RateLimiter} from 'limiter'
 import * as parser from './parser'
-import {load} from "./persistency";
-import {Lock, RoomGone} from "./persistency/types";
+import {load} from './persistency'
+import {RoomGone} from './persistency/types'
 
 const persistency = load()
 await persistency.init()
 
-type SocketData = {
-    ok: true,
-    id: string,
-    user: string
-    room: string
-    avatar: string
-} | { ok: false, id: string, room?: never, user?: never, avatar?: never }
+type SocketData =
+    | {
+          ok: true
+          id: string
+          user: string
+          room: string
+          avatar: string
+      }
+    | {ok: false; id: string; room?: never; user?: never; avatar?: never}
+
+type Me = {room: string; user: string}
 
 const io = new Server<ClientToServerEvents, ServerToClientEvents, {}, SocketData>({
     path: config.path,
@@ -51,394 +53,240 @@ class TooManyRequests extends Error {
 }
 
 io.on('connection', socket => {
-    socket.data.id = socket.id
+    socket.data = {ok: false, id: socket.id}
 
     console.log('socket', socket.data.id, 'on', 'connected')
 
+    const limiter = new RateLimiter({tokensPerInterval: 30, interval: 60 * 500, fireImmediately: true})
+
+    /**
+     * Registers a handler for a client event. The handler is logged, rate limited and acked (unless it returns false).
+     * Errors (e.g., invalid input) are reported to the client.
+     */
+    function on(event: ClientEvents, handler: (input: unknown) => Promise<boolean | void>) {
+        socket.on(event as any, async (...args: unknown[]) => {
+            const ack = args[args.length - 1] as Ack
+            const input = args.length > 1 ? args[0] : undefined
+
+            try {
+                console.log('socket', socket.data.id, socket.data.room, 'on', event, config.debug ? input : HIDDEN)
+                parser.ack(ack)
+
+                // Limit
+                await limit()
+
+                // Handle
+                const ok = await handler(input)
+
+                // Emit ack
+                if (ok !== false) ack({ok: true})
+            } catch (e) {
+                handleUnexpected(e)
+            }
+        })
+    }
+
+    /**
+     * Same as on, but only for sockets which joined a room.
+     */
+    function onJoined(event: ClientEvents, handler: (input: unknown, me: Me) => Promise<boolean | void>) {
+        on(event, async input => {
+            // Assert socket
+            if (!socket.data.ok) {
+                socket.disconnect(true)
+                return false
+            }
+
+            return handler(input, {room: socket.data.room, user: socket.data.user})
+        })
+    }
+
+    /**
+     * Runs the function while holding the lock of the room.
+     */
+    async function locked<T>(room: string, fn: () => Promise<T>): Promise<T> {
+        const lock = await persistency.lock(room)
+        try {
+            return await fn()
+        } finally {
+            await lock.release()
+        }
+    }
+
     socket.on(ClientEvents.HEALTH, async (ack: Ack) => {
         try {
-            console.log('socket', socket.data.id, 'on', ClientEvents.HEALTH)
-
-            const server = true
-            const data = await persistency.health()
-
-            ack({ok: server && data})
+            parser.ack(ack)
+            ack({ok: await persistency.health()})
         } catch (e) {
             handleUnexpected(e)
         }
     })
 
-    socket.on(
-        ClientEvents.JOIN_ROOM,
-        async (input: JoinRoom, ack: Ack) => {
-            let lock: Lock | undefined
+    on(ClientEvents.JOIN_ROOM, async input => {
+        const data = parser.joinRoom(input)
 
-            try {
-                console.log('socket', socket.data.id, 'on', ClientEvents.JOIN_ROOM, config.debug ? input : HIDDEN)
-                const data = parser.joinRoom(input)
-                parser.ack(ack)
-
-                // Limit
-                await limit()
-
-                // Assert socket has not joined yet
-                if (socket.data.ok) return emitError('Already joined a room ...')
-
-                // Acquire
-                lock = await persistency.lock(data.room)
-
-                // Assert room
-                const exists = await persistency.hasRoom(data.room)
-                if (!exists) await persistency.addRoom(data.room, data.seed && config.seed ? generateSeed() : undefined)
-
-                // Check if another user with same name exists
-                const collision = await persistency.hasUser(data.room, data.user)
-                if (collision) return emitError(`User ${data.user} already exists ...`, () => socket.disconnect(true))
-
-                // New user
-                const user: User = {
-                    name: data.user,
-                    avatar: generateAvatar(),
-                }
-
-                // Init metadata
-                socket.data = {ok: true, id: socket.data.id, user: data.user, room: data.room, avatar: user.avatar}
-
-                // Update state
-                await persistency.addUser(data.room, user.name, user.avatar)
-                await persistency.setHidden(data.room, true)
-
-                // Join broadcast
-                socket.join(data.room)
-
-                // Fetch room
-                const room = await persistency.getRoom(data.room)
-
-                // Emit init state
-                emitInitState(room)
-
-                // Emit add user to room
-                console.log('server', data.room, 'emit', ServerEvents.ADD_USER, config.debug ? user : HIDDEN)
-                socket.to(data.room).emit(ServerEvents.ADD_USER, user)
-
-                // Emit hide votes to room
-                console.log('server', data.room, 'emit', ServerEvents.HIDE_VOTES)
-                socket.to(data.room).emit(ServerEvents.HIDE_VOTES)
-
-                // Emit ack
-                ack({ok: true})
-            } catch (e) {
-                handleUnexpected(e)
-            } finally {
-                if (lock) await lock.release()
-            }
+        // Assert socket has not joined yet
+        if (socket.data.ok) {
+            emitError('Already joined a room ...')
+            return false
         }
-    )
 
-    socket.on(
-        ClientEvents.SET_VOTE,
-        async (input: SetVote, ack: Ack) => {
-            let lock: Lock | undefined
-
-            try {
-                console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.SET_VOTE, config.debug ? input : HIDDEN)
-                const data = parser.setVote(input)
-                parser.ack(ack)
-
-                // Limit
-                await limit()
-
-                // Assert socket
-                if (!socket.data.ok) return socket.disconnect(true)
-
-                // Acquire
-                lock = await persistency.lock(socket.data.room)
-
-                // Assert room
-                await persistency.assertRoom(socket.data.room)
-
-                // Update state
-                await persistency.setVote(socket.data.room, socket.data.user, data.vote)
-
-                // Emit set vote to room
-                const emit = {user: socket.data.user}
-                console.log('server', socket.data.room, 'emit', ServerEvents.SET_VOTED, config.debug ? emit : HIDDEN)
-                socket.to(socket.data.room).emit(ServerEvents.SET_VOTED, emit)
-
-                // Emit ack
-                ack({ok: true})
-            } catch (e) {
-                handleUnexpected(e)
-            } finally {
-                if (lock) await lock.release()
-            }
-        }
-    )
-
-    socket.on(
-        ClientEvents.SHOW_VOTES,
-        async (ack: Ack) => {
-            let lock: Lock | undefined
-
-            try {
-                console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.SHOW_VOTES)
-                parser.ack(ack)
-
-                // Limit
-                await limit()
-
-                // Assert
-                if (!socket.data.ok) return socket.disconnect(true)
-
-                // Acquire
-                lock = await persistency.lock(socket.data.room)
-
-                // Assert room
-                await persistency.assertRoom(socket.data.room)
-
-                // Update state
-                await persistency.setHidden(socket.data.room, false)
-
-                // Fetch votes
-                const data = await persistency.getVotes(socket.data.room)
-
-                // Emit show votes to room
-                console.log('server', socket.data.room, 'emit', ServerEvents.SHOW_VOTES, config.debug ? data : HIDDEN)
-                socket.to(socket.data.room).emit(ServerEvents.SHOW_VOTES, data)
-                socket.emit(ServerEvents.SHOW_VOTES, data)
-
-                // Emit ack
-                ack({ok: true})
-            } catch (e) {
-                handleUnexpected(e)
-            } finally {
-                if (lock) await lock.release()
-            }
-        }
-    )
-
-    socket.on(
-        ClientEvents.HIDE_VOTES,
-        async (ack: Ack) => {
-            let lock: Lock | undefined
-
-            try {
-                console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.HIDE_VOTES)
-                parser.ack(ack)
-
-                // Limit
-                await limit()
-
-                // Assert
-                if (!socket.data.ok) return socket.disconnect(true)
-
-                // Acquire
-                lock = await persistency.lock(socket.data.room)
-
-                // Assert room
-                await persistency.assertRoom(socket.data.room)
-
-                // Update state
-                await persistency.setHidden(socket.data.room, true)
-
-                // Emit hide votes to room
-                console.log('server', socket.data.room, 'emit', ServerEvents.HIDE_VOTES)
-                socket.to(socket.data.room).emit(ServerEvents.HIDE_VOTES)
-
-                // Emit ack
-                ack({ok: true})
-            } catch (e) {
-                handleUnexpected(e)
-            } finally {
-                if (lock) await lock.release()
-            }
-        }
-    )
-
-    socket.on(
-        ClientEvents.REMOVE_USER,
-        async (input: RemoveUser, ack: Ack) => {
-            let lock: Lock | undefined
-
-            try {
-                console.log(socket.data.id, socket.data.room, 'on', ClientEvents.REMOVE_USER, config.debug ? input : HIDDEN)
-                const data = parser.removeUser(input)
-                parser.ack(ack)
-
-                // Limit
-                await limit()
-
-                // Assert
-                if (!socket.data.ok) return socket.disconnect(true)
-
-                // Acquire
-                lock = await persistency.lock(socket.data.room)
-
-                // Assert room
-                await persistency.assertRoom(socket.data.room)
-
-                // Disconnect user
-                const sockets = await io.in(socket.data.room).fetchSockets()
-                const target = sockets.find(it => it.data.user === data.user)
-                if (target) {
-                    target.emit(ServerEvents.SHOW_NOTIFICATION, {message: `You have been removed by ${socket.data.user} ...`})
-                    target.disconnect(true)
-                }
-
-                // Manually cleanup broken user (the target's own disconnect handler might never run)
-                await persistency.removeUser(socket.data.room, data.user)
-                await persistency.removeVote(socket.data.room, data.user)
-                const emit = {user: data.user}
-                console.log(
-                    'server',
-                    socket.data.room,
-                    'emit',
-                    ServerEvents.REMOVE_USER,
-                    config.debug ? emit : HIDDEN
-                )
-                socket.to(socket.data.room).emit(ServerEvents.REMOVE_USER, emit)
-                socket.emit(ServerEvents.REMOVE_USER, emit)
-
-                // Emit ack
-                ack({ok: true})
-            } catch (e) {
-                handleUnexpected(e)
-            } finally {
-                if (lock) await lock.release()
-            }
-        }
-    )
-
-    socket.on(
-        ClientEvents.CLOSE_ROOM,
-        async (ack: Ack) => {
-            let lock: Lock | undefined
-
-            try {
-                console.log(socket.data.id, socket.data.room, 'on', ClientEvents.CLOSE_ROOM)
-                parser.ack(ack)
-
-                // Limit
-                await limit()
-
-                // Assert
-                if (!socket.data.ok) return socket.disconnect(true)
-
-                // Acquire
-                lock = await persistency.lock(socket.data.room)
-
-                // Assert room
-                await persistency.assertRoom(socket.data.room)
-
-                // Emit ack
-                ack({ok: true})
-
-                // Close room
-                await closeRoom()
-            } catch (e) {
-                handleUnexpected(e)
-            } finally {
-                if (lock) await lock.release()
-            }
-        }
-    )
-
-    socket.on(ClientEvents.INIT_STATE, async (ack: Ack) => {
-        let lock: Lock | undefined
-
-        try {
-            console.log('socket', socket.data.id, socket.data.room, 'on', ClientEvents.INIT_STATE)
-            parser.ack(ack)
-
-            // Limit
-            await limit()
-
-            // Assert
-            if (!socket.data.ok) return socket.disconnect(true)
-
-            // Acquire
-            lock = await persistency.lock(socket.data.room)
-
+        return locked(data.room, async () => {
             // Assert room
-            await persistency.assertRoom(socket.data.room)
+            const exists = await persistency.hasRoom(data.room)
+            if (!exists) await persistency.addRoom(data.room, data.seed && config.seed ? generateSeed() : undefined)
 
-            // Get room
-            const room = await persistency.getRoom(socket.data.room)
+            // Check if another user with same name exists
+            if (await persistency.hasUser(data.room, data.user)) {
+                emitError(`User ${data.user} already exists ...`, () => socket.disconnect(true))
+                return false
+            }
+
+            // New user
+            const user: User = {
+                name: data.user,
+                avatar: generateAvatar(),
+            }
+
+            // Init metadata
+            socket.data = {ok: true, id: socket.data.id, user: data.user, room: data.room, avatar: user.avatar}
+
+            // Update state
+            await persistency.addUser(data.room, user.name, user.avatar)
+            await persistency.setHidden(data.room, true)
+
+            // Join broadcast
+            socket.join(data.room)
 
             // Emit init state
-            emitInitState(room)
+            emitInitState(await persistency.getRoom(data.room))
 
-            // Emit ack
-            ack({ok: true})
-        } catch (e) {
-            handleUnexpected(e)
-        } finally {
-            if (lock) await lock.release()
-        }
-
+            // Emit add user and hide votes to room
+            console.log('server', data.room, 'emit', ServerEvents.ADD_USER, config.debug ? user : HIDDEN)
+            socket.to(data.room).emit(ServerEvents.ADD_USER, user)
+            console.log('server', data.room, 'emit', ServerEvents.HIDE_VOTES)
+            socket.to(data.room).emit(ServerEvents.HIDE_VOTES)
+        })
     })
 
-    socket.on(
-        'disconnect',
-        async (reason) => {
-            let lock: Lock | undefined
+    onJoined(ClientEvents.SET_VOTE, async (input, me) => {
+        const data = parser.setVote(input)
 
-            try {
-                console.log('socket', socket.data.id, socket.data.room, 'on', 'disconnected', reason)
+        return locked(me.room, async () => {
+            // Assert room
+            await persistency.assertRoom(me.room)
 
-                // Assert
-                if (!socket.data.ok) return
+            // Update state
+            await persistency.setVote(me.room, me.user, data.vote)
 
-                // Acquire
-                lock = await persistency.lock(socket.data.room)
+            // Emit set vote to room
+            const emit = {user: me.user}
+            console.log('server', me.room, 'emit', ServerEvents.SET_VOTED, config.debug ? emit : HIDDEN)
+            socket.to(me.room).emit(ServerEvents.SET_VOTED, emit)
+        })
+    })
 
-                // Assert room (nothing to clean up if it was closed meanwhile)
-                if (await persistency.hasRoom(socket.data.room)) {
-                    // Update state
-                    await persistency.removeUser(socket.data.room, socket.data.user)
-                    await persistency.removeVote(socket.data.room, socket.data.user)
+    onJoined(ClientEvents.SHOW_VOTES, async (_, me) => {
+        return locked(me.room, async () => {
+            await persistency.assertRoom(me.room)
 
-                    // Remove socket from broadcast
-                    socket.leave(socket.data.room)
+            await persistency.setHidden(me.room, false)
+            const data = await persistency.getVotes(me.room)
 
-                    // Emit remove user to room
-                    const emit = {user: socket.data.user}
-                    console.log(
-                        'server',
-                        socket.data.room,
-                        'emit',
-                        ServerEvents.REMOVE_USER,
-                        config.debug ? emit : HIDDEN
-                    )
-                    socket.to(socket.data.room).emit(ServerEvents.REMOVE_USER, emit)
-                }
+            console.log('server', me.room, 'emit', ServerEvents.SHOW_VOTES, config.debug ? data : HIDDEN)
+            io.to(me.room).emit(ServerEvents.SHOW_VOTES, data)
+        })
+    })
 
-                // Reset data
-                socket.data = {
-                    ok: false,
-                    id: socket.data.id,
-                }
+    onJoined(ClientEvents.HIDE_VOTES, async (_, me) => {
+        return locked(me.room, async () => {
+            await persistency.assertRoom(me.room)
 
-            } catch (e) {
-                handleUnexpected(e)
-            } finally {
-                if (lock) await lock.release()
+            await persistency.setHidden(me.room, true)
+
+            console.log('server', me.room, 'emit', ServerEvents.HIDE_VOTES)
+            socket.to(me.room).emit(ServerEvents.HIDE_VOTES)
+        })
+    })
+
+    onJoined(ClientEvents.INIT_STATE, async (_, me) => {
+        return locked(me.room, async () => {
+            await persistency.assertRoom(me.room)
+            emitInitState(await persistency.getRoom(me.room))
+        })
+    })
+
+    onJoined(ClientEvents.REMOVE_USER, async (input, me) => {
+        const data = parser.removeUser(input)
+
+        return locked(me.room, async () => {
+            await persistency.assertRoom(me.room)
+
+            // Disconnect user
+            const sockets = await io.in(me.room).fetchSockets()
+            const target = sockets.find(it => it.data.user === data.user)
+            if (target) {
+                target.emit(ServerEvents.SHOW_NOTIFICATION, {message: `You have been removed by ${me.user} ...`})
+                target.disconnect(true)
             }
-        }
-    )
 
-    socket.on(
-        'error',
-        (error: Error) => {
-            try {
-                console.log(socket.data.id, socket.data.room, 'on', 'error', error)
-            } catch (e) {
-                handleUnexpected(e)
-            }
-        }
-    )
+            // Manually cleanup broken user (the target's own disconnect handler might never run)
+            await persistency.removeUser(me.room, data.user)
+            await persistency.removeVote(me.room, data.user)
 
-    const limiter = new RateLimiter({tokensPerInterval: 30, interval: 60 * 500, fireImmediately: true})
+            const emit = {user: data.user}
+            console.log('server', me.room, 'emit', ServerEvents.REMOVE_USER, config.debug ? emit : HIDDEN)
+            io.to(me.room).emit(ServerEvents.REMOVE_USER, emit)
+        })
+    })
+
+    onJoined(ClientEvents.CLOSE_ROOM, async (_, me) => {
+        return locked(me.room, async () => {
+            await persistency.assertRoom(me.room)
+
+            // Update state
+            await persistency.deleteRoom(me.room)
+
+            // Emit close room to the others (this socket receives the ack and leaves by itself)
+            console.log('server', me.room, 'emit', ServerEvents.CLOSE_ROOM)
+            socket.to(me.room).emit(ServerEvents.CLOSE_ROOM)
+
+            // Disconnect the others by force
+            io.in(me.room).except(socket.id).disconnectSockets(true)
+        })
+    })
+
+    socket.on('disconnect', async reason => {
+        try {
+            console.log('socket', socket.data.id, socket.data.room, 'on', 'disconnected', reason)
+
+            // Assert
+            if (!socket.data.ok) return
+            const me = {room: socket.data.room, user: socket.data.user}
+
+            // Reset data
+            socket.data = {ok: false, id: socket.data.id}
+
+            await locked(me.room, async () => {
+                if (!(await persistency.hasRoom(me.room))) return
+
+                // Update state
+                await persistency.removeUser(me.room, me.user)
+                await persistency.removeVote(me.room, me.user)
+
+                // Emit remove user to room
+                const emit = {user: me.user}
+                console.log('server', me.room, 'emit', ServerEvents.REMOVE_USER, config.debug ? emit : HIDDEN)
+                io.to(me.room).emit(ServerEvents.REMOVE_USER, emit)
+            })
+        } catch (e) {
+            handleUnexpected(e)
+        }
+    })
+
+    socket.on('error', (error: Error) => {
+        console.log(socket.data.id, socket.data.room, 'on', 'error', error)
+    })
 
     async function limit() {
         if (!limiter.tryRemoveTokens(1)) throw new TooManyRequests()
@@ -448,6 +296,7 @@ io.on('connection', socket => {
         console.log('server', socket.data.id, 'emit', ServerEvents.CLOSE_ROOM)
         socket.emit(ServerEvents.CLOSE_ROOM)
         socket.disconnect(true)
+        return false
     }
 
     function emitError(message: string, ack?: Ack): void {
@@ -479,7 +328,7 @@ io.on('connection', socket => {
             hidden: room.hidden,
             users: room.users,
             votes: room.hidden ? ownVote(room) : room.votes,
-            voted: room.voted
+            voted: room.voted,
         }
         console.log('server', socket.data.id, 'emit', ServerEvents.INIT_STATE, config.debug ? init : HIDDEN)
         socket.emit(ServerEvents.INIT_STATE, init)
@@ -489,30 +338,6 @@ io.on('connection', socket => {
         const vote = socket.data.user ? room.votes[socket.data.user] : undefined
         return vote === undefined ? {} : {[socket.data.user!]: vote}
     }
-
-    async function closeRoom() {
-        // Assert
-        if (!socket.data.ok) return socket.disconnect(true)
-
-        // Update state
-        await persistency.deleteRoom(socket.data.room)
-
-        // Emit close room to room
-        console.log('server', socket.data.room, 'emit', ServerEvents.CLOSE_ROOM)
-        socket.to(socket.data.room).emit(ServerEvents.CLOSE_ROOM)
-
-        // Disconnect all sockets by force
-        const pool = io.sockets.adapter.rooms.get(socket.data.room) ?? new Set<string>()
-        pool.forEach(id => {
-            try {
-                const other = io.sockets.sockets.get(id)
-                if (other) other.disconnect(true)
-            } catch (e) {
-                handleUnexpected(e)
-            }
-        })
-    }
-
 })
 
 io.listen(config.port)
