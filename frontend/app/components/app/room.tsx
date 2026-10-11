@@ -346,7 +346,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                 <EyeOff/> Hide Votes
                             </Button>
 
-                            <Kick users={users} onClick={onRemoveUser} disabled={!connected}/>
+                            <Kick users={users} me={props.user} onClick={onRemoveUser} disabled={!connected}/>
 
                             <Dialog>
                                 <DialogTrigger asChild>

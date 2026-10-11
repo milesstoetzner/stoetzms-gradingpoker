@@ -14,7 +14,7 @@ import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVal
 import {User} from "../../../../spec/types";
 
 
-export default function Kick(props: { users: User[], onClick: (value: string) => void, disabled: boolean }) {
+export default function Kick(props: { users: User[], me: string, onClick: (value: string) => void, disabled: boolean }) {
     const [user, setUser] = useState<string | undefined>()
 
     const [open, setOpen] = useState<boolean>(false)
@@ -22,7 +22,7 @@ export default function Kick(props: { users: User[], onClick: (value: string) =>
     function onKick() {
         if (!user) return
         props.onClick(user)
-        onKick()
+        onClose()
     }
 
     function onClose() {
@@ -30,10 +30,17 @@ export default function Kick(props: { users: User[], onClick: (value: string) =>
         setUser(undefined)
     }
 
-    return <Dialog open={open}>
+    function onOpenChange(next: boolean) {
+        if (next) return setOpen(true)
+        onClose()
+    }
+
+    const others = props.users.filter(it => it.name !== props.me)
+
+    return <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogTrigger asChild>
-            <Button type="submit" onClick={() => setOpen(true)} className="w-full" variant="secondary"
-                    disabled={props.disabled}>
+            <Button type="submit" className="w-full" variant="secondary"
+                    disabled={props.disabled || !others.length}>
                 <UserX/> Remove User
             </Button>
         </DialogTrigger>
@@ -52,7 +59,7 @@ export default function Kick(props: { users: User[], onClick: (value: string) =>
                 </SelectTrigger>
                 <SelectContent>
                     <SelectGroup className="pb-2">
-                        {props.users.map((user: User) => <SelectItem value={user.name}>{user.name}</SelectItem>)}
+                        {others.map((user: User) => <SelectItem key={user.name} value={user.name}>{user.name}</SelectItem>)}
                     </SelectGroup>
                 </SelectContent>
             </Select>
