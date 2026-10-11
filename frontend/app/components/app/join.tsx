@@ -5,6 +5,7 @@ import {Label} from '../ui/label'
 import React from 'react'
 import {ArrowLeft, ArrowLeftCircle, ArrowRightCircle, ArrowRightLeft, RefreshCw, Vote} from 'lucide-react'
 import Hover from './hover'
+import {Logo} from './logo'
 
 export function JoinCard(props: {
     room: string
@@ -20,7 +21,10 @@ export function JoinCard(props: {
     return (
         <Card className="w-full max-w-sm shadow-none">
             <CardHeader className="mb-4">
-                <CardTitle>gradingpoker.stoetz.ms</CardTitle>
+                <CardTitle className="flex items-center gap-3">
+                    <Logo />
+                    gradingpoker.stoetz.ms
+                </CardTitle>
             </CardHeader>
             <CardContent>
                 <div className="flex flex-col gap-6">

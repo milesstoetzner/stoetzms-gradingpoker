@@ -4,6 +4,8 @@ import type {LinksFunction} from '@remix-run/node'
 import './tailwind.css'
 
 export const links: LinksFunction = () => [
+    {rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg'},
+    {rel: 'apple-touch-icon', href: '/apple-touch-icon.png'},
     {rel: 'preconnect', href: 'https://fonts.googleapis.com'},
     {
         rel: 'preconnect',
@@ -22,6 +24,7 @@ export function Layout({children}: {children: React.ReactNode}) {
             <head>
                 <meta charSet="utf-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
+                <meta name="theme-color" content="#171717" />
                 <Meta />
                 <Links />
             </head>
