@@ -2,7 +2,7 @@ import Redis from "ioredis";
 import {Room, Votes} from "../../../spec/types";
 import * as config from "../config";
 import {Mutex, MutexInterface, withTimeout} from 'async-mutex'
-import {Lock, Persistency} from "./types";
+import {Lock, Persistency, RoomGone} from "./types";
 
 
 export class PersistencyRedis implements Persistency {
@@ -67,6 +67,10 @@ export class PersistencyRedis implements Persistency {
 
     async hasRoom(room: string) {
         return this.exists(concatHiddenKey(room))
+    }
+
+    async assertRoom(room: string) {
+        if (!(await this.hasRoom(room))) throw new RoomGone()
     }
 
     async addRoom(room: string, seed?: Room) {

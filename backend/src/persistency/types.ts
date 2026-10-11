@@ -1,5 +1,11 @@
 import {Room, Votes} from "../../../spec/types";
 
+export class RoomGone extends Error {
+    constructor() {
+        super('Room is gone ...')
+    }
+}
+
 export interface Lock {
     release(): Promise<void> | void
 }
@@ -26,6 +32,8 @@ export interface Persistency {
     removeVote(room: string, user: string): Promise<void>
 
     hasRoom(room: string): Promise<boolean>
+
+    assertRoom(room: string): Promise<void>
 
     addRoom(room: string, seed?: Room): Promise<void>
 

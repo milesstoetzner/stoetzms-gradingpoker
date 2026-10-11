@@ -17,7 +17,7 @@ import * as config from './config'
 import {RateLimiter} from 'limiter'
 import * as parser from './parser'
 import {load} from "./persistency";
-import {Lock} from "./persistency/types";
+import {Lock, RoomGone} from "./persistency/types";
 
 const persistency = load()
 await persistency.init()
@@ -155,7 +155,7 @@ io.on('connection', socket => {
                 lock = await persistency.lock(socket.data.room)
 
                 // Assert room
-                await persistency.hasRoom(socket.data.room)
+                await persistency.assertRoom(socket.data.room)
 
                 // Update state
                 await persistency.setVote(socket.data.room, socket.data.user, data.vote)
@@ -194,7 +194,7 @@ io.on('connection', socket => {
                 lock = await persistency.lock(socket.data.room)
 
                 // Assert room
-                await persistency.hasRoom(socket.data.room)
+                await persistency.assertRoom(socket.data.room)
 
                 // Update state
                 await persistency.setHidden(socket.data.room, false)
@@ -236,7 +236,7 @@ io.on('connection', socket => {
                 lock = await persistency.lock(socket.data.room)
 
                 // Assert room
-                await persistency.hasRoom(socket.data.room)
+                await persistency.assertRoom(socket.data.room)
 
                 // Update state
                 await persistency.setHidden(socket.data.room, true)
@@ -274,6 +274,9 @@ io.on('connection', socket => {
                 // Acquire
                 lock = await persistency.lock(socket.data.room)
 
+                // Assert room
+                await persistency.assertRoom(socket.data.room)
+
                 // Disconnect user
                 const sockets = await io.in(socket.data.room).fetchSockets()
                 const target = sockets.find(it => it.data.user === data.user)
@@ -309,6 +312,8 @@ io.on('connection', socket => {
     socket.on(
         ClientEvents.CLOSE_ROOM,
         async (ack: Ack) => {
+            let lock: Lock | undefined
+
             try {
                 console.log(socket.data.id, socket.data.room, 'on', ClientEvents.CLOSE_ROOM)
                 parser.ack(ack)
@@ -319,6 +324,12 @@ io.on('connection', socket => {
                 // Assert
                 if (!socket.data.ok) return socket.disconnect(true)
 
+                // Acquire
+                lock = await persistency.lock(socket.data.room)
+
+                // Assert room
+                await persistency.assertRoom(socket.data.room)
+
                 // Emit ack
                 ack({ok: true})
 
@@ -326,6 +337,8 @@ io.on('connection', socket => {
                 await closeRoom()
             } catch (e) {
                 handleUnexpected(e)
+            } finally {
+                if (lock) await lock.release()
             }
         }
     )
@@ -347,7 +360,7 @@ io.on('connection', socket => {
             lock = await persistency.lock(socket.data.room)
 
             // Assert room
-            await persistency.hasRoom(socket.data.room)
+            await persistency.assertRoom(socket.data.room)
 
             // Get room
             const room = await persistency.getRoom(socket.data.room)
@@ -376,10 +389,11 @@ io.on('connection', socket => {
                 // Assert
                 if (!socket.data.ok) return
 
-                if (socket.data.room) {
-                    // Acquire
-                    lock = await persistency.lock(socket.data.room)
+                // Acquire
+                lock = await persistency.lock(socket.data.room)
 
+                // Assert room (nothing to clean up if it was closed meanwhile)
+                if (await persistency.hasRoom(socket.data.room)) {
                     // Update state
                     await persistency.removeUser(socket.data.room, socket.data.user)
                     await persistency.removeVote(socket.data.room, socket.data.user)
@@ -430,6 +444,12 @@ io.on('connection', socket => {
         if (!limiter.tryRemoveTokens(1)) throw new TooManyRequests()
     }
 
+    function emitRoomGone() {
+        console.log('server', socket.data.id, 'emit', ServerEvents.CLOSE_ROOM)
+        socket.emit(ServerEvents.CLOSE_ROOM)
+        socket.disconnect(true)
+    }
+
     function emitError(message: string, ack?: Ack): void {
         const emit = {message}
         console.log('server', socket.data.id, 'emit', ServerEvents.SHOW_NOTIFICATION, config.debug ? emit : HIDDEN)
@@ -438,6 +458,7 @@ io.on('connection', socket => {
 
     function handleUnexpected(error: unknown) {
         if (error instanceof TooManyRequests) return emitError(error.message)
+        if (error instanceof RoomGone) return emitRoomGone()
 
         if (parser.isInvalidInput(error)) {
             const issue = error.issues[0]

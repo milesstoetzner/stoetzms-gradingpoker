@@ -1,4 +1,4 @@
-import {Lock, Persistency} from "./types";
+import {Lock, Persistency, RoomGone} from "./types";
 import {Room, User, Votes} from "../../../spec/types";
 import {Mutex, MutexInterface, withTimeout} from 'async-mutex'
 
@@ -61,6 +61,10 @@ export class PersistencyMemory implements Persistency {
         return !!this.data[room]
     }
 
+    async assertRoom(room: string) {
+        if (!(await this.hasRoom(room))) throw new RoomGone()
+    }
+
     async addRoom(room: string, seed?: Room) {
         this.data[room] = {
             hidden: seed?.hidden ?? true,
@@ -72,10 +76,11 @@ export class PersistencyMemory implements Persistency {
 
     async getRoom(room: string): Promise<Room> {
         const data = this.data[room]
+        if (!data) throw new Error(`Room ${room} does not exist ...`)
         return {
             hidden: data.hidden,
-            users: data.users,
-            votes: data.votes,
+            users: [...data.users],
+            votes: {...data.votes},
             voted: Object.fromEntries(Object.keys(data.votes).map(user => [user, true]))
         }
     }
