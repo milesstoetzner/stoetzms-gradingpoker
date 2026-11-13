@@ -28,6 +28,9 @@ export type Room = {
 export type Member = {
     name: string
     avatar: string
+    // Browser session and socket of the current connection (empty for seeded users)
+    session: string
+    socket: string
 }
 
 export type Seed = {
@@ -36,7 +39,14 @@ export type Seed = {
     votes: Votes
 }
 
-export type JoinResult = {ok: true; room: RoomData} | {ok: false; reason: 'collision'}
+// Identifies the connection of a user: the session (per browser) and the socket (per connection)
+export type Connection = {
+    session: string
+    socket: string
+}
+
+// takeover: the user already existed with the same session (e.g., reconnect) and kept their vote
+export type JoinResult = {ok: true; room: RoomData; takeover: boolean} | {ok: false; reason: 'collision'}
 
 export class RoomGone extends Error {
     constructor() {
@@ -55,7 +65,8 @@ export class RoomBusy extends Error {
  * Operations on rooms. Every operation is atomic, also across multiple servers, and returns the room as it is right
  * after the operation.
  *
- * Operations on rooms which do not exist (anymore) throw RoomGone instead of recreating them.
+ * Operations on rooms which do not exist (anymore) throw RoomGone instead of recreating them (housekeeping
+ * operations like disconnect return undefined instead).
  */
 export interface Persistency {
     init(): Promise<void>
@@ -64,11 +75,14 @@ export interface Persistency {
 
     health(): Promise<boolean>
 
-    // Creates the room if required, adds the user and hides votes
-    join(room: string, user: User, seed?: Seed): Promise<JoinResult>
+    // Creates the room if required, adds the user and hides votes, or takes over the user if the session matches
+    join(room: string, user: User, connection: Connection, seed?: Seed): Promise<JoinResult>
 
     // Removes the user and their vote
     leave(room: string, user: string): Promise<RoomData>
+
+    // Removes the user, but only if the socket is still the user's current one
+    disconnect(room: string, user: string, socket: string): Promise<RoomData | undefined>
 
     // Sets the vote of the user (who must be in the room) and hides votes
     vote(room: string, user: string, vote: string): Promise<RoomData>

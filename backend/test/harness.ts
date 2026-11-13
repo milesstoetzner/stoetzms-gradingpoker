@@ -1,10 +1,13 @@
 import {ChildProcess, spawn} from 'node:child_process'
+import {randomUUID} from 'node:crypto'
 import {createServer} from 'node:net'
 import {io, Socket} from 'socket.io-client'
 import {ClientToServerEvents, Notification, RoomState, ServerEvents, ServerToClientEvents} from '../../spec/types'
 
 export type Client = Socket<ServerToClientEvents, ClientToServerEvents> & {
     notifications: string[]
+    // Per browser, reused when reconnecting
+    session: string
     // Latest room state, applied like the frontend does (newer versions only)
     state?: RoomState
 }
@@ -59,7 +62,7 @@ export class TestServer {
         throw new Error('Server did not start')
     }
 
-    client(): Client {
+    client(session: string = randomUUID()): Client {
         const client = io(`http://localhost:${this.port}`, {
             path: '/socket.io',
             transports: ['websocket'],
@@ -67,6 +70,7 @@ export class TestServer {
             reconnection: false,
         }) as Client
         client.notifications = []
+        client.session = session
         client.on(ServerEvents.ROOM_STATE, (data: RoomState) => {
             if (client.state && client.state.id === data.id && client.state.version > data.version) return
             client.state = data
@@ -96,7 +100,7 @@ export async function connected(client: Client) {
 
 export async function join(client: Client, room: string, user: string) {
     await connected(client)
-    return client.timeout(1000).emitWithAck('join-room' as any, {room, user})
+    return client.timeout(1000).emitWithAck('join-room' as any, {room, user, session: client.session})
 }
 
 export async function ack(client: Client, event: string, ...args: unknown[]) {

@@ -201,4 +201,43 @@ describe.each(persistencies)('server (%s)', persistency => {
         expect(carol.state?.users.map(it => it.name)).toEqual(['carol'])
         expect(carol.state?.voted).toEqual({})
     })
+
+    describe('sessions', () => {
+        test('joining with the same session takes over the user and replaces the previous connection', async () => {
+            const room = unique('room')
+            const first = server.client()
+            const bob = server.client()
+            await join(first, room, 'alice')
+            await join(bob, room, 'bob')
+            await ack(first, ClientEvents.SET_VOTE, {vote: '2.3'})
+            const avatar = bob.state?.users.find(it => it.name === 'alice')?.avatar
+
+            const replaced = next(first, 'disconnect')
+            const second = server.client(first.session)
+            expect(await join(second, room, 'alice')).toEqual({ok: true})
+            await replaced
+            expect(first.notifications).toContain('You joined this room somewhere else ...')
+
+            // Same seat: vote and avatar kept
+            const own = await fetchState(second)
+            expect(own.votes).toEqual({alice: '2.3'})
+            expect(own.users.find(it => it.name === 'alice')?.avatar).toBe(avatar)
+
+            // The replaced connection must not remove the user
+            await sleep(200)
+            const state = await fetchState(bob)
+            expect(state.users.map(it => it.name).sort()).toEqual(['alice', 'bob'])
+            expect(state.voted).toEqual({alice: true})
+        })
+
+        test('another session cannot take over a user', async () => {
+            const room = unique('room')
+            const alice = server.client()
+            await join(alice, room, 'alice')
+
+            const mallory = server.client()
+            await expect(join(mallory, room, 'alice')).rejects.toThrow()
+            expect(mallory.notifications).toContain('User alice already exists ...')
+        })
+    })
 })

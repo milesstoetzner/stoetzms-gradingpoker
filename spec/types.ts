@@ -23,6 +23,8 @@ export enum ServerEvents {
 export type JoinRoom = {
     room: string
     user: string
+    // Random id per browser (kept across reloads); joining again with the same session takes over the existing user
+    session: string
     seed?: boolean
 }
 

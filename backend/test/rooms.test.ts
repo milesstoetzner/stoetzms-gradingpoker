@@ -20,7 +20,7 @@ describe('conflicts', () => {
     test('a vote starts over after a conflict', async () => {
         const store = new ConflictingStore()
         const rooms = new Rooms(store)
-        await rooms.join('room', {name: 'alice', avatar: ''})
+        await rooms.join('room', {name: 'alice', avatar: ''}, {session: 'a', socket: 'a'})
 
         store.conflicts = 2
         expect((await rooms.vote('room', 'alice', '1.0')).votes).toEqual({alice: '1.0'})
@@ -29,7 +29,7 @@ describe('conflicts', () => {
     test('a vote which keeps conflicting fails with RoomBusy and is not applied', async () => {
         const store = new ConflictingStore()
         const rooms = new Rooms(store)
-        await rooms.join('room', {name: 'alice', avatar: ''})
+        await rooms.join('room', {name: 'alice', avatar: ''}, {session: 'a', socket: 'a'})
 
         store.conflicts = 3
         await expect(rooms.vote('room', 'alice', '1.0')).rejects.toThrow(RoomBusy)
@@ -42,10 +42,10 @@ describe('conflicts', () => {
     test('a conflicting join starts over with the latest room', async () => {
         const store = new ConflictingStore()
         const rooms = new Rooms(store)
-        await rooms.join('room', {name: 'alice', avatar: ''})
+        await rooms.join('room', {name: 'alice', avatar: ''}, {session: 'a', socket: 'a'})
 
         store.conflicts = 10
-        const result = await rooms.join('room', {name: 'bob', avatar: ''})
+        const result = await rooms.join('room', {name: 'bob', avatar: ''}, {session: 'b', socket: 'b'})
         expect(result.ok).toBe(true)
         expect((await rooms.getRoom('room')).users.map(it => it.name)).toEqual(['alice', 'bob'])
     })

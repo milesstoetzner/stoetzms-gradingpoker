@@ -39,6 +39,7 @@ import {
 import {Badge} from "../ui/badge";
 import Hover from "./hover";
 import Kick from "./kick";
+import {getSession} from '../../lib/session'
 
 export function RoomCard(props: { room: string; user: string; setProcess: (process: string) => void }) {
     const [searchParams, _] = useSearchParams()
@@ -74,6 +75,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
             socket.emit(ClientEvents.JOIN_ROOM, {
                 user: props.user,
                 room: props.room,
+                session: getSession(),
                 seed: searchParams.has('seed')
             }, (data: Response) => {
                 console.log('socket', socket.id, 'ack', ClientEvents.JOIN_ROOM, data)

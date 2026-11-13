@@ -1,10 +1,10 @@
 import {randomUUID} from 'node:crypto'
 import {User} from '../../../spec/types'
-import {JoinResult, Member, Persistency, Room, RoomBusy, RoomData, RoomGone, Seed, Store} from './types'
+import {Connection, JoinResult, Member, Persistency, Room, RoomBusy, RoomData, RoomGone, Seed, Store} from './types'
 
 // Attempts of an operation if other servers keep changing the room meanwhile. Operations users trigger by clicking
-// (vote, show/hide) give up soon with RoomBusy and the user clicks again. Joins (also automatic on reconnect) and
-// leaving (also on disconnect) keep starting over, since nobody clicks again for them.
+// (vote, show/hide) give up soon with RoomBusy and the user clicks again. Joins (also automatic on reconnect), leaving
+// and housekeeping (e.g., disconnects) keep starting over, since nobody clicks again for them.
 const ATTEMPTS = {click: 3, automatic: 50}
 
 /**
@@ -32,24 +32,47 @@ export class Rooms implements Persistency {
         return this.store.health()
     }
 
-    async join(name: string, user: User, seed?: Seed): Promise<JoinResult> {
+    async join(name: string, user: User, connection: Connection, seed?: Seed): Promise<JoinResult> {
         const {room, result} = await this.update(
             name,
             room => {
-                if (find(room, user.name)) return 'collision'
+                // Take over the existing user (e.g., reconnect) which keeps their vote
+                const existing = find(room, user.name)
+                if (existing) {
+                    if (existing.session !== connection.session) return 'collision'
 
-                room.users.push({name: user.name, avatar: user.avatar})
+                    existing.socket = connection.socket
+                    return 'takeover'
+                }
+
+                room.users.push({name: user.name, avatar: user.avatar, ...connection})
                 room.hidden = true
             },
             {create: () => create(seed), attempts: ATTEMPTS.automatic}
         )
         if (result === 'collision') return {ok: false, reason: 'collision'}
-        return {ok: true, room}
+        return {ok: true, room, takeover: result === 'takeover'}
     }
 
     async leave(name: string, user: string) {
         const {room} = await this.update(name, room => remove(room, user), {attempts: ATTEMPTS.automatic})
         return room
+    }
+
+    async disconnect(name: string, user: string, socket: string) {
+        try {
+            const {room} = await this.update(
+                name,
+                room => {
+                    if (find(room, user)?.socket === socket) remove(room, user)
+                },
+                {attempts: ATTEMPTS.automatic}
+            )
+            return room
+        } catch (e) {
+            if (e instanceof RoomGone) return
+            throw e
+        }
     }
 
     async vote(name: string, user: string, vote: string) {
@@ -126,7 +149,7 @@ function create(seed?: Seed): Room {
         id: randomUUID(),
         version: 0,
         hidden: seed?.hidden ?? true,
-        users: seed?.users.map(it => ({name: it.name, avatar: it.avatar})) ?? [],
+        users: seed?.users.map(it => ({name: it.name, avatar: it.avatar, session: '', socket: ''})) ?? [],
         votes: {...seed?.votes},
     }
 }

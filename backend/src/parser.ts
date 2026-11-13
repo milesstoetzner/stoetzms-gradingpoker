@@ -12,6 +12,7 @@ const _name = z
 const _joinRoom = z.object({
     room: _name,
     user: _name,
+    session: z.string().regex(/^[A-Za-z0-9-]{16,64}$/, 'Invalid session'),
     seed: z.boolean().optional(),
 })
 

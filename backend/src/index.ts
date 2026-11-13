@@ -26,9 +26,10 @@ type SocketData =
           id: string
           user: string
           room: string
+          session: string
           avatar: string
       }
-    | {ok: false; id: string; room?: never; user?: never; avatar?: never}
+    | {ok: false; id: string; room?: never; user?: never; session?: never; avatar?: never}
 
 type Me = {room: string; user: string}
 
@@ -144,7 +145,12 @@ io.on('connection', socket => {
         }
 
         // Update state
-        const result = await persistency.join(data.room, user, data.seed && config.seed ? generateSeed() : undefined)
+        const result = await persistency.join(
+            data.room,
+            user,
+            {session: data.session, socket: socket.id},
+            data.seed && config.seed ? generateSeed() : undefined
+        )
 
         // Check if another user with same name exists
         if (!result.ok) {
@@ -153,10 +159,26 @@ io.on('connection', socket => {
         }
 
         // Init metadata
-        socket.data = {ok: true, id: socket.data.id, user: data.user, room: data.room, avatar: user.avatar}
+        socket.data = {
+            ok: true,
+            id: socket.data.id,
+            user: data.user,
+            room: data.room,
+            session: data.session,
+            avatar: user.avatar,
+        }
 
         // Join broadcast
         socket.join(data.room)
+
+        // Disconnect previous sockets of a taken over user (e.g., another tab, stale connection)
+        if (result.takeover) {
+            const sockets = await io.in(data.room).fetchSockets()
+            for (const other of sockets.filter(it => it.data.user === data.user && it.id !== socket.id)) {
+                other.emit(ServerEvents.SHOW_NOTIFICATION, {message: 'You joined this room somewhere else ...'})
+                other.disconnect(true)
+            }
+        }
 
         // Emit state
         emitState({room: data.room, user: data.user}, result.room)
@@ -227,14 +249,13 @@ io.on('connection', socket => {
             // Reset data
             socket.data = {ok: false, id: socket.data.id}
 
-            // Update state
-            const room = await persistency.leave(me.room, me.user)
+            // Update state (no-op if the user has been taken over by another socket meanwhile)
+            const room = await persistency.disconnect(me.room, me.user, socket.id)
+            if (!room) return
 
             // Emit state to room
             emitRoomState(me.room, room)
         } catch (e) {
-            // Nothing to clean up if the room has been closed meanwhile
-            if (e instanceof RoomGone) return
             handleUnexpected(e)
         }
     })
