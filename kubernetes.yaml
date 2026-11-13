@@ -5,6 +5,62 @@ metadata:
   name: gradingpoker
 
 ---
+# Shared state of all backend replicas (rooms and socket.io pub/sub). Rooms are ephemeral, hence, no persistence.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gradingpoker-redis
+  namespace: gradingpoker
+  labels:
+    app: gradingpoker-redis
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gradingpoker-redis
+  template:
+    metadata:
+      labels:
+        app: gradingpoker-redis
+    spec:
+      containers:
+        - name: gradingpoker-redis
+          image: redis:8.0
+          args: [ "--save", "", "--appendonly", "no", "--maxmemory", "200mb", "--maxmemory-policy", "noeviction" ]
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command: [ "redis-cli", "ping" ]
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gradingpoker-redis
+  namespace: gradingpoker
+  labels:
+    app: gradingpoker-redis
+spec:
+  selector:
+    app: gradingpoker-redis
+  ports:
+    - name: redis
+      protocol: TCP
+      port: 6379
+      targetPort: redis
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -13,7 +69,10 @@ metadata:
   labels:
     app: gradingpoker-backend
 spec:
-  replicas: 1
+  replicas: 2
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: gradingpoker-backend
@@ -25,9 +84,30 @@ spec:
       containers:
         - name: gradingpoker-backend
           image: ghcr.io/milesstoetzner/stoetzms-gradingpoker:backend-2a12706
+          env:
+            - name: STOETZMS_GRADING_POKER_PERSISTENCY
+              value: redis
+            - name: STOETZMS_GRADING_POKER_REDIS_HOST
+              value: gradingpoker-redis
           ports:
             - name: socketio
               containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: socketio
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: socketio
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
 
 ---
 apiVersion: v1
@@ -56,7 +136,7 @@ metadata:
   labels:
     app: gradingpoker-frontend
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: gradingpoker-frontend
