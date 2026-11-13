@@ -18,7 +18,11 @@ const ATTEMPTS = {click: 3, automatic: 50}
 export class Rooms implements Persistency {
     private readonly queues = new Map<string, Promise<unknown>>()
 
-    constructor(private readonly store: Store) {}
+    constructor(
+        private readonly store: Store,
+        // Seconds an offline user keeps their seat
+        private readonly grace: number
+    ) {}
 
     async init() {
         await this.store.init()
@@ -32,7 +36,7 @@ export class Rooms implements Persistency {
         return this.store.health()
     }
 
-    async join(name: string, user: User, connection: Connection, seed?: Seed): Promise<JoinResult> {
+    async join(name: string, user: Omit<User, 'online'>, connection: Connection, seed?: Seed): Promise<JoinResult> {
         const {room, result} = await this.update(
             name,
             room => {
@@ -42,6 +46,7 @@ export class Rooms implements Persistency {
                     if (existing.session !== connection.session) return 'collision'
 
                     existing.socket = connection.socket
+                    delete existing.offline
                     return 'takeover'
                 }
 
@@ -59,16 +64,31 @@ export class Rooms implements Persistency {
         return room
     }
 
-    async disconnect(name: string, user: string, socket: string) {
+    async disconnect(name: string, user: string, socket: string, mode: 'leave' | 'offline') {
         try {
             const {room} = await this.update(
                 name,
                 room => {
-                    if (find(room, user)?.socket === socket) remove(room, user)
+                    const existing = find(room, user)
+                    if (existing?.socket !== socket) return
+
+                    if (mode === 'leave') remove(room, user)
+                    else existing.offline = now()
                 },
                 {attempts: ATTEMPTS.automatic}
             )
             return room
+        } catch (e) {
+            if (e instanceof RoomGone) return
+            throw e
+        }
+    }
+
+    async prune(name: string) {
+        try {
+            // Every update removes expired offline users
+            const {room, changed} = await this.update(name, () => {}, {attempts: ATTEMPTS.automatic})
+            if (changed) return room
         } catch (e) {
             if (e instanceof RoomGone) return
             throw e
@@ -103,8 +123,8 @@ export class Rooms implements Persistency {
     }
 
     /**
-     * Applies the change to a copy of the latest room and writes it, if the change changed something. Creates the room
-     * if it does not exist and create is given, otherwise throws RoomGone.
+     * Removes expired offline users and applies the change to a copy of the latest room, then writes it, if something
+     * changed. Creates the room if it does not exist and create is given, otherwise throws RoomGone.
      *
      * Starts over with the latest room if another server changed the room meanwhile, up to the given attempts, then
      * throws RoomBusy. Hence, the change might be applied several times and must not have side effects.
@@ -120,16 +140,23 @@ export class Rooms implements Persistency {
                 const room = structuredClone(current) ?? create?.()
                 if (!room) throw new RoomGone()
 
+                this.removeExpired(room)
                 const result = change(room)
                 if (current && JSON.stringify(room) === JSON.stringify(current)) {
-                    return {room: toData(current), result}
+                    return {room: toData(current), result, changed: false}
                 }
 
                 room.version++
-                if (await this.store.write(name, room, current)) return {room: toData(room), result}
+                if (await this.store.write(name, room, current)) return {room: toData(room), result, changed: true}
             }
             throw new RoomBusy()
         })
+    }
+
+    private removeExpired(room: Room) {
+        for (const user of room.users) {
+            if (user.offline !== undefined && now() - user.offline >= this.grace) remove(room, user.name)
+        }
     }
 
     // Runs the tasks of a room one after another
@@ -168,7 +195,11 @@ function toData(room: Room): RoomData {
         id: room.id,
         version: room.version,
         hidden: room.hidden,
-        users: room.users.map(it => ({name: it.name, avatar: it.avatar})),
+        users: room.users.map(it => ({name: it.name, avatar: it.avatar, online: it.offline === undefined})),
         votes: {...room.votes},
     }
+}
+
+function now() {
+    return Math.floor(Date.now() / 1000)
 }

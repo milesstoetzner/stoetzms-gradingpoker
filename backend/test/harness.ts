@@ -13,6 +13,8 @@ export type Client = Socket<ServerToClientEvents, ClientToServerEvents> & {
 }
 
 // Persistencies to test against: memory always, redis if TEST_REDIS_PORT is set
+export const OFFLINE_GRACE = 2
+
 export const persistencies = ['memory', ...(process.env.TEST_REDIS_PORT ? ['redis'] : [])]
 
 async function freePort(): Promise<number> {
@@ -45,6 +47,7 @@ export class TestServer {
                 STOETZMS_GRADING_POKER_PERSISTENCY: this.persistency,
                 STOETZMS_GRADING_POKER_REDIS_HOST: process.env.TEST_REDIS_HOST ?? 'localhost',
                 STOETZMS_GRADING_POKER_REDIS_PORT: process.env.TEST_REDIS_PORT ?? '6379',
+                STOETZMS_GRADING_POKER_OFFLINE_GRACE: String(OFFLINE_GRACE),
             },
             stdio: process.env.TEST_SERVER_LOGS ? 'inherit' : 'ignore',
         })
@@ -101,6 +104,13 @@ export async function connected(client: Client) {
 export async function join(client: Client, room: string, user: string) {
     await connected(client)
     return client.timeout(1000).emitWithAck('join-room' as any, {room, user, session: client.session})
+}
+
+// Simulates a lost connection (e.g., network, phone locked) without telling the server
+export async function drop(client: Client) {
+    const disconnected = new Promise(resolve => client.once('disconnect', resolve))
+    client.io.engine.close()
+    await disconnected
 }
 
 export async function ack(client: Client, event: string, ...args: unknown[]) {

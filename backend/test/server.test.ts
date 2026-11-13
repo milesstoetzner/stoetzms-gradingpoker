@@ -1,6 +1,6 @@
 import {afterAll, beforeAll, describe, expect, test, vi} from 'vitest'
 import {BALLOT_VALUES, ClientEvents, ServerEvents} from '../../spec/types'
-import {ack, Client, fetchState, join, next, persistencies, sleep, TestServer, unique} from './harness'
+import {ack, Client, drop, fetchState, join, next, OFFLINE_GRACE, persistencies, sleep, TestServer, unique} from './harness'
 
 describe.each(persistencies)('server (%s)', persistency => {
     const server = new TestServer(persistency)
@@ -202,15 +202,76 @@ describe.each(persistencies)('server (%s)', persistency => {
         expect(carol.state?.voted).toEqual({})
     })
 
-    describe('sessions', () => {
-        test('joining with the same session takes over the user and replaces the previous connection', async () => {
+    describe('connection loss', () => {
+        test('keeps the user offline with their vote, and reconnecting takes them over', async () => {
+            const room = unique('room')
+            const alice = server.client()
+            const bob = server.client()
+            await join(alice, room, 'alice')
+            await join(bob, room, 'bob')
+            await ack(alice, ClientEvents.SET_VOTE, {vote: '1.0'})
+            await ack(bob, ClientEvents.SET_VOTE, {vote: '2.0'})
+            await ack(bob, ClientEvents.SHOW_VOTES)
+            const avatar = bob.state?.users.find(it => it.name === 'alice')?.avatar
+
+            await drop(alice)
+            await vi.waitFor(() => expect(bob.state?.users.find(it => it.name === 'alice')?.online).toBe(false))
+            expect(bob.state?.votes).toEqual({alice: '1.0', bob: '2.0'})
+
+            // Reconnect (new socket, same session)
+            const again = server.client(alice.session)
+            expect(await join(again, room, 'alice')).toEqual({ok: true})
+            await vi.waitFor(() => expect(bob.state?.users.find(it => it.name === 'alice')?.online).toBe(true))
+
+            // Same seat: vote and avatar kept, and votes stay shown
+            expect(bob.state?.users.find(it => it.name === 'alice')?.avatar).toBe(avatar)
+            expect(bob.state?.hidden).toBe(false)
+            expect(again.state?.votes).toEqual({alice: '1.0', bob: '2.0'})
+        })
+
+        test('removes offline users after the grace period', async () => {
+            const room = unique('room')
+            const alice = server.client()
+            const bob = server.client()
+            await join(alice, room, 'alice')
+            await join(bob, room, 'bob')
+            await ack(alice, ClientEvents.SET_VOTE, {vote: '1.0'})
+
+            await drop(alice)
+            await vi.waitFor(() => expect(bob.state?.users.map(it => it.name)).toEqual(['bob']), {
+                timeout: (OFFLINE_GRACE + 3) * 1000,
+            })
+            expect(bob.state?.voted).toEqual({})
+        })
+
+        test('leaving on purpose removes the user immediately', async () => {
+            const room = unique('room')
+            const alice = server.client()
+            const bob = server.client()
+            await join(alice, room, 'alice')
+            await join(bob, room, 'bob')
+
+            alice.disconnect()
+            await vi.waitFor(() => expect(bob.state?.users.map(it => it.name)).toEqual(['bob']))
+        })
+
+        test('another session cannot take over an offline user', async () => {
+            const room = unique('room')
+            const alice = server.client()
+            await join(alice, room, 'alice')
+            await drop(alice)
+
+            const mallory = server.client()
+            await expect(join(mallory, room, 'alice')).rejects.toThrow()
+            expect(mallory.notifications).toContain('User alice already exists ...')
+        })
+
+        test('joining with the same session elsewhere replaces the previous connection', async () => {
             const room = unique('room')
             const first = server.client()
             const bob = server.client()
             await join(first, room, 'alice')
             await join(bob, room, 'bob')
-            await ack(first, ClientEvents.SET_VOTE, {vote: '2.3'})
-            const avatar = bob.state?.users.find(it => it.name === 'alice')?.avatar
 
             const replaced = next(first, 'disconnect')
             const second = server.client(first.session)
@@ -218,26 +279,13 @@ describe.each(persistencies)('server (%s)', persistency => {
             await replaced
             expect(first.notifications).toContain('You joined this room somewhere else ...')
 
-            // Same seat: vote and avatar kept
-            const own = await fetchState(second)
-            expect(own.votes).toEqual({alice: '2.3'})
-            expect(own.users.find(it => it.name === 'alice')?.avatar).toBe(avatar)
-
-            // The replaced connection must not remove the user
+            // The replaced connection must not mark the user offline
             await sleep(200)
             const state = await fetchState(bob)
-            expect(state.users.map(it => it.name).sort()).toEqual(['alice', 'bob'])
-            expect(state.voted).toEqual({alice: true})
-        })
-
-        test('another session cannot take over a user', async () => {
-            const room = unique('room')
-            const alice = server.client()
-            await join(alice, room, 'alice')
-
-            const mallory = server.client()
-            await expect(join(mallory, room, 'alice')).rejects.toThrow()
-            expect(mallory.notifications).toContain('User alice already exists ...')
+            expect(state.users).toEqual([
+                expect.objectContaining({name: 'alice', online: true}),
+                expect.objectContaining({name: 'bob', online: true}),
+            ])
         })
     })
 })

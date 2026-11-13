@@ -8,18 +8,22 @@ export function generateSeed() {
         {
             name: randomName(),
             avatar: generateAvatar(),
+            online: true,
         },
         {
             name: randomName(),
             avatar: generateAvatar(),
+            online: true,
         },
         {
             name: randomName(),
             avatar: generateAvatar(),
+            online: true,
         },
         {
             name: randomName(),
             avatar: generateAvatar(),
+            online: true,
         },
     ]
 

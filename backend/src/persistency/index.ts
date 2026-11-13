@@ -7,9 +7,9 @@ import {Persistency} from './types'
 export function load(): Persistency {
     switch (config.persistency) {
         case 'redis':
-            return new Rooms(new RedisStore())
+            return new Rooms(new RedisStore(), config.offlineGrace)
         case 'memory':
-            return new Rooms(new MemoryStore())
+            return new Rooms(new MemoryStore(), config.offlineGrace)
         default:
             throw new Error(`Unknown persistency type: ${config.persistency}`)
     }

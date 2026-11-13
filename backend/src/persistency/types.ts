@@ -31,6 +31,8 @@ export type Member = {
     // Browser session and socket of the current connection (empty for seeded users)
     session: string
     socket: string
+    // Epoch seconds since the user is offline
+    offline?: number
 }
 
 export type Seed = {
@@ -66,7 +68,10 @@ export class RoomBusy extends Error {
  * after the operation.
  *
  * Operations on rooms which do not exist (anymore) throw RoomGone instead of recreating them (housekeeping
- * operations like disconnect return undefined instead).
+ * operations like disconnect and prune return undefined instead).
+ *
+ * Users who lost their connection stay in the room as offline (with their vote) for a grace period. Mutating
+ * operations remove offline users whose grace period ended.
  */
 export interface Persistency {
     init(): Promise<void>
@@ -76,13 +81,16 @@ export interface Persistency {
     health(): Promise<boolean>
 
     // Creates the room if required, adds the user and hides votes, or takes over the user if the session matches
-    join(room: string, user: User, connection: Connection, seed?: Seed): Promise<JoinResult>
+    join(room: string, user: Omit<User, 'online'>, connection: Connection, seed?: Seed): Promise<JoinResult>
 
     // Removes the user and their vote
     leave(room: string, user: string): Promise<RoomData>
 
-    // Removes the user, but only if the socket is still the user's current one
-    disconnect(room: string, user: string, socket: string): Promise<RoomData | undefined>
+    // Removes the user (leave) or marks them as offline, but only if the socket is still the user's current one
+    disconnect(room: string, user: string, socket: string, mode: 'leave' | 'offline'): Promise<RoomData | undefined>
+
+    // Removes offline users whose grace period ended, returns the room only if something changed
+    prune(room: string): Promise<RoomData | undefined>
 
     // Sets the vote of the user (who must be in the room) and hides votes
     vote(room: string, user: string, vote: string): Promise<RoomData>

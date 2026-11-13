@@ -7,7 +7,6 @@ import {
     RoomState,
     ServerEvents,
     ServerToClientEvents,
-    User,
 } from '../../spec/types'
 import {generateAvatar} from './utils'
 import {generateSeed} from './seed'
@@ -40,8 +39,9 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, {}, SocketData
     cors: {
         origin: config.origin,
     },
-    pingInterval: 2000,
-    pingTimeout: 2000,
+    // Disconnects are no longer destructive (users go offline and keep their vote), so be lenient with mobile networks
+    pingInterval: 10000,
+    pingTimeout: 10000,
 })
 
 // @ts-ignore
@@ -139,7 +139,7 @@ io.on('connection', socket => {
         }
 
         // New user
-        const user: User = {
+        const user = {
             name: data.user,
             avatar: generateAvatar(),
         }
@@ -249,12 +249,19 @@ io.on('connection', socket => {
             // Reset data
             socket.data = {ok: false, id: socket.data.id}
 
+            // Leaving on purpose (leave button, closing the room) removes the user. Otherwise (network, server
+            // restart), the user stays offline with their vote and might reconnect within the grace period.
+            const mode = reason === 'client namespace disconnect' ? 'leave' : 'offline'
+
             // Update state (no-op if the user has been taken over by another socket meanwhile)
-            const room = await persistency.disconnect(me.room, me.user, socket.id)
+            const room = await persistency.disconnect(me.room, me.user, socket.id, mode)
             if (!room) return
 
             // Emit state to room
             emitRoomState(me.room, room)
+
+            // Remove the user once the grace period ended (if this server is gone by then, the next change does it)
+            if (mode === 'offline') schedulePrune(me.room)
         } catch (e) {
             handleUnexpected(e)
         }
@@ -331,6 +338,22 @@ io.on('connection', socket => {
         }
     }
 })
+
+function schedulePrune(room: string) {
+    setTimeout(
+        async () => {
+            try {
+                const data = await persistency.prune(room)
+                if (!data) return
+                console.log('server', room, 'emit', ServerEvents.ROOM_STATE, data.version)
+                io.to(room).emit(ServerEvents.ROOM_STATE, toState(data))
+            } catch (e) {
+                console.log(e)
+            }
+        },
+        (config.offlineGrace + 1) * 1000
+    ).unref()
+}
 
 io.listen(config.port)
 

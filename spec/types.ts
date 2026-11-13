@@ -58,6 +58,8 @@ export type RemoveUser = {
 export type User = {
     name: string
     avatar: string
+    // Offline users lost their connection but keep their vote until they reconnect or the grace period ends
+    online: boolean
 }
 
 export type Ack = (data: Response) => void

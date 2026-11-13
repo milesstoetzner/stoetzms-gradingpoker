@@ -193,11 +193,15 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
         })
     }
 
+    // Closing or reloading the tab only drops the connection (the user stays offline with their vote and is taken
+    // over on reload). When a backgrounded tab (e.g., mobile) becomes visible again, reconnect right away.
     useEffect(() => {
-        const onUnload = () => socket.disconnect()
-        window.addEventListener('beforeunload', onUnload)
-        return () => window.removeEventListener('beforeunload', onUnload)
-    }, [])
+        const onVisible = () => {
+            if (document.visibilityState === 'visible' && !socket.connected && joined) socket.connect()
+        }
+        document.addEventListener('visibilitychange', onVisible)
+        return () => document.removeEventListener('visibilitychange', onVisible)
+    }, [joined])
 
     const location = useLocation()
     const navigationType = useNavigationType()
@@ -262,14 +266,20 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                     {users.map(user => (
                                         <TableRow key={user.name}>
                                             <TableCell>
-                                                <Avatar style={{borderWidth: '1px'}}>
+                                                <Avatar style={{borderWidth: '1px'}} className={user.online ? '' : 'opacity-40'}>
                                                     <AvatarImage
                                                         src={`data:image/svg+xml;base64,${btoa(user.avatar)}`}
                                                     ></AvatarImage>
                                                 </Avatar>
                                             </TableCell>
                                             <TableCell>{user.name} {user.name === props.user && !presentation &&
-                                                <Badge className="ml-[0.5rem]">me</Badge>}  </TableCell>
+                                                <Badge className="ml-[0.5rem]">me</Badge>}
+                                                {!user.online && (
+                                                    <Hover message="Lost connection, keeps their vote for a while">
+                                                        <Badge variant="outline" className="ml-[0.5rem] text-muted-foreground">offline</Badge>
+                                                    </Hover>
+                                                )}
+                                            </TableCell>
                                             <TableCell>
                                                 {user.name === props.user && !presentation ? (
                                                     <Ballot value={vote} onChange={onVoteChange} disabled={!connected}/>
