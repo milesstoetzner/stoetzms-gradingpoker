@@ -34,7 +34,10 @@ export class TestServer {
     private clients: Client[] = []
     port = 0
 
-    constructor(private readonly persistency: string) {}
+    constructor(
+        private readonly persistency: string,
+        private readonly env: Record<string, string> = {}
+    ) {}
 
     async start() {
         this.port = await freePort()
@@ -48,6 +51,7 @@ export class TestServer {
                 STOETZMS_GRADING_POKER_REDIS_HOST: process.env.TEST_REDIS_HOST ?? 'localhost',
                 STOETZMS_GRADING_POKER_REDIS_PORT: process.env.TEST_REDIS_PORT ?? '6379',
                 STOETZMS_GRADING_POKER_OFFLINE_GRACE: String(OFFLINE_GRACE),
+                ...this.env,
             },
             stdio: process.env.TEST_SERVER_LOGS ? 'inherit' : 'ignore',
         })

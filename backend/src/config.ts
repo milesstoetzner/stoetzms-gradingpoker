@@ -9,3 +9,5 @@ export const redisPort = Number(process.env.STOETZMS_GRADING_POKER_REDIS_PORT ??
 export const seed = (process.env.STOETZMS_GRADING_POKER_SEED ?? String(debug)) === 'true'
 // Seconds an offline user (lost connection) keeps their seat and vote before being removed
 export const offlineGrace = Number(process.env.STOETZMS_GRADING_POKER_OFFLINE_GRACE ?? 600)
+// Seconds after the last change of a room until it is deleted
+export const roomTtl = Number(process.env.STOETZMS_GRADING_POKER_ROOM_TTL ?? 7 * 24 * 60 * 60)

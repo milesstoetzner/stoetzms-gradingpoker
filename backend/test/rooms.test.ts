@@ -18,7 +18,7 @@ class ConflictingStore extends MemoryStore {
 
 describe('conflicts', () => {
     test('a vote starts over after a conflict', async () => {
-        const store = new ConflictingStore()
+        const store = new ConflictingStore(600)
         const rooms = new Rooms(store, 600)
         await rooms.join('room', {name: 'alice', avatar: ''}, {session: 'a', socket: 'a'})
 
@@ -27,7 +27,7 @@ describe('conflicts', () => {
     })
 
     test('a vote which keeps conflicting fails with RoomBusy and is not applied', async () => {
-        const store = new ConflictingStore()
+        const store = new ConflictingStore(600)
         const rooms = new Rooms(store, 600)
         await rooms.join('room', {name: 'alice', avatar: ''}, {session: 'a', socket: 'a'})
 
@@ -40,7 +40,7 @@ describe('conflicts', () => {
     })
 
     test('a conflicting join starts over with the latest room', async () => {
-        const store = new ConflictingStore()
+        const store = new ConflictingStore(600)
         const rooms = new Rooms(store, 600)
         await rooms.join('room', {name: 'alice', avatar: ''}, {session: 'a', socket: 'a'})
 

@@ -3,26 +3,30 @@ import * as config from '../config'
 import {revision, Room, Store} from './types'
 
 /**
- * Stores the room only if the stored revision is still the expected one (empty if no room is stored).
- * Redis executes scripts atomically, hence, this compare and set is atomic across all servers.
+ * Stores the room only if the stored revision is still the expected one (empty if no room is stored) and resets its
+ * expiry. Redis executes scripts atomically, hence, this compare and set is atomic across all servers.
  *
  * KEYS: room
- * ARGV: expected revision, new revision, room (json)
+ * ARGV: expected revision, new revision, room (json), ttl (seconds)
  */
 const WRITE = `
 local current = redis.call('HGET', KEYS[1], 'revision') or ''
 if current ~= ARGV[1] then return 0 end
 
 redis.call('HSET', KEYS[1], 'revision', ARGV[2], 'room', ARGV[3])
+redis.call('EXPIRE', KEYS[1], ARGV[4])
 return 1
 `
 
 /**
  * Keeps every room as hash room:{name} with the fields room (json) and revision (see revision()), so that multiple
- * servers can share the rooms.
+ * servers can share the rooms. Rooms without changes for the TTL expire, i.e., are deleted by Redis itself.
  */
 export class RedisStore implements Store {
     private _redis?: Redis
+
+    // ttl: seconds after the last change until a room is deleted
+    constructor(private readonly ttl: number) {}
 
     get redis() {
         if (!this._redis) throw new Error('Redis not initialized')
@@ -62,7 +66,8 @@ export class RedisStore implements Store {
             key(name),
             revision(expected),
             revision(room),
-            JSON.stringify(room)
+            JSON.stringify(room),
+            this.ttl
         )
         return written === 1
     }
