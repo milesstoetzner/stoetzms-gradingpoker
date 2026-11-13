@@ -1,3 +1,4 @@
+import {createServer} from 'node:http'
 import {Server} from 'socket.io'
 import {
     Ack,
@@ -19,6 +20,26 @@ import {RoomBusy, RoomData, RoomGone} from './persistency/types'
 const persistency = load()
 await persistency.init()
 
+let ready = true
+
+// Disconnect handlers still running, awaited on shutdown so that users are marked offline before exiting
+const disconnecting = new Set<Promise<void>>()
+
+// Probes for Kubernetes (socket.io handles its own path before these)
+const http = createServer(async (req, res) => {
+    try {
+        if (req.url === '/healthz') return res.writeHead(200).end('ok')
+        if (req.url === '/readyz') {
+            const ok = ready && (await persistency.health())
+            return res.writeHead(ok ? 200 : 503).end(ok ? 'ok' : 'not ready')
+        }
+        res.writeHead(404).end()
+    } catch (e) {
+        console.log(e)
+        res.writeHead(500).end()
+    }
+})
+
 type SocketData =
     | {
           ok: true
@@ -32,7 +53,7 @@ type SocketData =
 
 type Me = {room: string; user: string}
 
-const io = new Server<ClientToServerEvents, ServerToClientEvents, {}, SocketData>({
+const io = new Server<ClientToServerEvents, ServerToClientEvents, {}, SocketData>(http, {
     path: config.path,
     // WebSocket only: long-polling would require sticky sessions when running multiple servers
     transports: ['websocket'],
@@ -238,7 +259,12 @@ io.on('connection', socket => {
         return false
     })
 
-    socket.on('disconnect', async reason => {
+    socket.on('disconnect', reason => {
+        const pending = onDisconnect(reason).finally(() => disconnecting.delete(pending))
+        disconnecting.add(pending)
+    })
+
+    async function onDisconnect(reason: string) {
         try {
             console.log('socket', socket.data.id, socket.data.room, 'on', 'disconnected', reason)
 
@@ -265,7 +291,7 @@ io.on('connection', socket => {
         } catch (e) {
             handleUnexpected(e)
         }
-    })
+    }
 
     socket.on('error', (error: Error) => {
         console.log(socket.data.id, socket.data.room, 'on', 'error', error)
@@ -355,7 +381,7 @@ function schedulePrune(room: string) {
     ).unref()
 }
 
-io.listen(config.port)
+http.listen(config.port)
 
 process.on('unhandledRejection', err => {
     console.log(err)
@@ -364,7 +390,10 @@ process.on('unhandledRejection', err => {
 async function shutdown(signal: string) {
     try {
         console.log('server', 'on', signal)
+        ready = false
+        // Disconnected clients go offline and reconnect to another server, where they take over their user
         await io.close()
+        await Promise.allSettled(disconnecting)
         await persistency.close()
         process.exit(0)
     } catch (e) {
