@@ -52,7 +52,9 @@ A link is only shown if its variable is set.
 
 Install or upgrade the Helm chart with the commit tag printed by `./build-and-push.sh`.
 Settings such as the host, the Gateway to attach to, replicas and the Impressum/privacy URLs are in `chart/values.yaml`.
+Redis runs with Redis Sentinel from the [CloudPirates Redis chart](https://github.com/CloudPirates-io/helm-charts/tree/main/charts/redis), a dependency of the chart.
 
 ```
+helm dependency build ./chart
 helm upgrade --install gradingpoker ./chart --namespace gradingpoker --create-namespace --set image.tag=<tag>
 ```

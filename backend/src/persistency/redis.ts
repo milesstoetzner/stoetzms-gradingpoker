@@ -1,5 +1,5 @@
 import Redis from 'ioredis'
-import * as config from '../config'
+import {connect} from '../redis'
 import {revision, Room, Store} from './types'
 
 /**
@@ -34,10 +34,7 @@ export class RedisStore implements Store {
     }
 
     async init() {
-        this._redis = new Redis({
-            host: config.redis,
-            port: config.redisPort,
-        })
+        this._redis = connect()
         this._redis.defineCommand('gradingpokerWrite', {numberOfKeys: 1, lua: WRITE})
     }
 

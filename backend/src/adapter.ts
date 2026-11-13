@@ -1,6 +1,6 @@
 import {createAdapter} from '@socket.io/redis-adapter'
-import Redis from 'ioredis'
 import * as config from './config'
+import {connect} from './redis'
 
 /**
  * With Redis persistency, multiple servers can serve the same room. The Redis adapter forwards broadcasts, fetchSockets
@@ -9,7 +9,7 @@ import * as config from './config'
 export function loadAdapter() {
     if (config.persistency !== 'redis') return {adapter: undefined, close: async () => {}}
 
-    const pub = new Redis({host: config.redis, port: config.redisPort})
+    const pub = connect()
     const sub = pub.duplicate()
 
     return {

@@ -22,10 +22,31 @@ frontend:
   privacyUrl: ""
   resources: {}
 
-# Shared state of all backend replicas (rooms and socket.io pub/sub). Rooms are ephemeral, hence, no persistence.
+# Shared state of all backend replicas (rooms and socket.io pub/sub), see https://github.com/CloudPirates-io/helm-charts
+# (charts/redis). Three Redis instances, each with a Sentinel next to it: the Sentinels promote a replica when the
+# master fails, and the backend asks them for the current master.
 redis:
-  image: redis:8.0
-  maxmemory: 200mb
+  architecture: replication
+  replicaCount: 3
+  sentinel:
+    enabled: true
+    masterName: gradingpoker
+    quorum: 2
+    resources:
+      requests:
+        cpu: 20m
+        memory: 32Mi
+      limits:
+        memory: 64Mi
+  # Rooms are ephemeral, hence, nothing is written to disk. A restarted instance syncs from the current master.
+  persistence:
+    enabled: false
+  # noeviction: writes fail loudly rather than silently evicting rooms
+  extraConfig: |
+    maxmemory 200mb
+    maxmemory-policy noeviction
+    save ""
+    appendonly no
   resources:
     requests:
       cpu: 50m
