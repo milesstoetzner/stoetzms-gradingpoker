@@ -50,8 +50,9 @@ A link is only shown if its variable is set.
 
 ## Production
 
-Adapt the manifest and apply it.
+Install or upgrade the Helm chart with the commit tag printed by `./build-and-push.sh`.
+Settings such as the host, TLS secret, replicas and the Impressum/privacy URLs are in `chart/values.yaml`.
 
 ```
-kubectl apply -f kubernetes.yaml
+helm upgrade --install gradingpoker ./chart --namespace gradingpoker --create-namespace --set image.tag=<tag>
 ```

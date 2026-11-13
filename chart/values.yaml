@@ -1,0 +1,45 @@
+# Images are tagged <repository>:backend-<tag> and <repository>:frontend-<tag>, see build-and-push.sh
+image:
+  repository: ghcr.io/milesstoetzner/stoetzms-gradingpoker
+  tag: 2a12706
+  pullPolicy: IfNotPresent
+
+backend:
+  replicas: 2
+  # Additional environment variables, e.g. STOETZMS_GRADING_POKER_OFFLINE_GRACE (see backend/src/config.ts)
+  env: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+frontend:
+  replicas: 2
+  # Links below the join card, only shown if set
+  impressumUrl: https://www.uni-stuttgart.de/impressum
+  privacyUrl: ""
+  resources: {}
+
+# Shared state of all backend replicas (rooms and socket.io pub/sub). Rooms are ephemeral, hence, no persistence.
+redis:
+  image: redis:8.0
+  maxmemory: 200mb
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+
+ingress:
+  enabled: true
+  className: nginx
+  host: gradingpoker.rss.iste.uni-stuttgart.de
+  # Leave empty to serve plain HTTP
+  tlsSecretName: gradingpoker-tls
+  annotations:
+    # Keep idle websockets open
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"

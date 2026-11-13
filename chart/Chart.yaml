@@ -1,0 +1,5 @@
+apiVersion: v2
+name: gradingpoker
+description: gradingpoker.stoetz.ms (frontend, backend replicas and a shared Redis)
+type: application
+version: 0.1.0

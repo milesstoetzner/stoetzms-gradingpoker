@@ -1,0 +1,52 @@
+{{- $ctx := dict "root" . "component" "frontend" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gradingpoker.name" $ctx }}
+  labels:
+    {{- include "gradingpoker.labels" $ctx | nindent 4 }}
+spec:
+  replicas: {{ .Values.frontend.replicas }}
+  selector:
+    matchLabels:
+      {{- include "gradingpoker.selectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gradingpoker.selectorLabels" $ctx | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ include "gradingpoker.name" $ctx }}
+          image: "{{ .Values.image.repository }}:frontend-{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            {{- with .Values.frontend.impressumUrl }}
+            - name: STOETZMS_GRADING_POKER_IMPRESSUM_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.frontend.privacyUrl }}
+            - name: STOETZMS_GRADING_POKER_PRIVACY_URL
+              value: {{ . | quote }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 80
+          {{- with .Values.frontend.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "gradingpoker.name" $ctx }}
+  labels:
+    {{- include "gradingpoker.labels" $ctx | nindent 4 }}
+spec:
+  selector:
+    {{- include "gradingpoker.selectorLabels" $ctx | nindent 4 }}
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: http

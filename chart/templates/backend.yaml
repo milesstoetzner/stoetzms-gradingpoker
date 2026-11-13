@@ -1,0 +1,65 @@
+{{- $ctx := dict "root" . "component" "backend" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gradingpoker.name" $ctx }}
+  labels:
+    {{- include "gradingpoker.labels" $ctx | nindent 4 }}
+spec:
+  replicas: {{ .Values.backend.replicas }}
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "gradingpoker.selectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gradingpoker.selectorLabels" $ctx | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ include "gradingpoker.name" $ctx }}
+          image: "{{ .Values.image.repository }}:backend-{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: STOETZMS_GRADING_POKER_PERSISTENCY
+              value: redis
+            - name: STOETZMS_GRADING_POKER_REDIS_HOST
+              value: {{ include "gradingpoker.name" (dict "root" . "component" "redis") }}
+            {{- range $name, $value := .Values.backend.env }}
+            - name: {{ $name }}
+              value: {{ $value | quote }}
+            {{- end }}
+          ports:
+            - name: socketio
+              containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: socketio
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: socketio
+            periodSeconds: 10
+          {{- with .Values.backend.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "gradingpoker.name" $ctx }}
+  labels:
+    {{- include "gradingpoker.labels" $ctx | nindent 4 }}
+spec:
+  selector:
+    {{- include "gradingpoker.selectorLabels" $ctx | nindent 4 }}
+  ports:
+    - name: socketio
+      protocol: TCP
+      port: 3000
+      targetPort: socketio
