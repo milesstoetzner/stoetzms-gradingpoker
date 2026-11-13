@@ -1,14 +1,15 @@
 import * as config from '../config'
-import {PersistencyRedis} from "./redis";
-import {PersistencyMemory} from "./memory";
-import {Persistency} from "./types";
+import {RedisStore} from './redis'
+import {MemoryStore} from './memory'
+import {Rooms} from './rooms'
+import {Persistency} from './types'
 
 export function load(): Persistency {
     switch (config.persistency) {
         case 'redis':
-            return new PersistencyRedis()
+            return new Rooms(new RedisStore())
         case 'memory':
-            return new PersistencyMemory()
+            return new Rooms(new MemoryStore())
         default:
             throw new Error(`Unknown persistency type: ${config.persistency}`)
     }

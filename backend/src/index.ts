@@ -15,7 +15,7 @@ import * as config from './config'
 import {RateLimiter} from 'limiter'
 import * as parser from './parser'
 import {load} from './persistency'
-import {RoomData, RoomGone} from './persistency/types'
+import {RoomBusy, RoomData, RoomGone} from './persistency/types'
 
 const persistency = load()
 await persistency.init()
@@ -119,18 +119,6 @@ io.on('connection', socket => {
         })
     }
 
-    /**
-     * Runs the function while holding the lock of the room. Changes must call persistency.bump once.
-     */
-    async function locked<T>(room: string, fn: () => Promise<T>): Promise<T> {
-        const lock = await persistency.lock(room)
-        try {
-            return await fn()
-        } finally {
-            await lock.release()
-        }
-    }
-
     socket.on(ClientEvents.HEALTH, async (ack: Ack) => {
         try {
             parser.ack(ack)
@@ -149,125 +137,83 @@ io.on('connection', socket => {
             return false
         }
 
-        return locked(data.room, async () => {
-            // Assert room
-            const exists = await persistency.hasRoom(data.room)
-            if (!exists) await persistency.addRoom(data.room, data.seed && config.seed ? generateSeed() : undefined)
+        // New user
+        const user: User = {
+            name: data.user,
+            avatar: generateAvatar(),
+        }
 
-            // Check if another user with same name exists
-            if (await persistency.hasUser(data.room, data.user)) {
-                emitError(`User ${data.user} already exists ...`, () => socket.disconnect(true))
-                return false
-            }
+        // Update state
+        const result = await persistency.join(data.room, user, data.seed && config.seed ? generateSeed() : undefined)
 
-            // New user
-            const user: User = {
-                name: data.user,
-                avatar: generateAvatar(),
-            }
+        // Check if another user with same name exists
+        if (!result.ok) {
+            emitError(`User ${data.user} already exists ...`, () => socket.disconnect(true))
+            return false
+        }
 
-            // Init metadata
-            socket.data = {ok: true, id: socket.data.id, user: data.user, room: data.room, avatar: user.avatar}
+        // Init metadata
+        socket.data = {ok: true, id: socket.data.id, user: data.user, room: data.room, avatar: user.avatar}
 
-            // Update state
-            await persistency.addUser(data.room, user.name, user.avatar)
-            await persistency.setHidden(data.room, true)
-            await persistency.bump(data.room)
+        // Join broadcast
+        socket.join(data.room)
 
-            // Join broadcast
-            socket.join(data.room)
-
-            // Emit state
-            emitState({room: data.room, user: data.user}, await persistency.getRoom(data.room))
-        })
+        // Emit state
+        emitState({room: data.room, user: data.user}, result.room)
     })
 
     onJoined(ClientEvents.SET_VOTE, async (input, me) => {
         const data = parser.setVote(input)
 
-        return locked(me.room, async () => {
-            // Assert room
-            await persistency.assertRoom(me.room)
+        // Update state (fails if the room is closed or the user has been removed)
+        const room = await persistency.vote(me.room, me.user, data.vote)
 
-            // Assert user (might have been removed meanwhile)
-            if (!(await persistency.hasUser(me.room, me.user))) return emitRoomGone()
-
-            // Update state (voting hides votes)
-            await persistency.setVote(me.room, me.user, data.vote)
-            await persistency.setHidden(me.room, true)
-            await persistency.bump(me.room)
-
-            // Emit state
-            emitState(me, await persistency.getRoom(me.room))
-        })
+        // Emit state
+        emitState(me, room)
     })
 
     onJoined(ClientEvents.SHOW_VOTES, async (_, me) => {
-        return locked(me.room, async () => {
-            await persistency.assertRoom(me.room)
-
-            await persistency.setHidden(me.room, false)
-            await persistency.bump(me.room)
-            emitState(me, await persistency.getRoom(me.room))
-        })
+        const room = await persistency.setHidden(me.room, false)
+        emitState(me, room)
     })
 
     onJoined(ClientEvents.HIDE_VOTES, async (_, me) => {
-        return locked(me.room, async () => {
-            await persistency.assertRoom(me.room)
-
-            await persistency.setHidden(me.room, true)
-            await persistency.bump(me.room)
-            emitState(me, await persistency.getRoom(me.room))
-        })
+        const room = await persistency.setHidden(me.room, true)
+        emitState(me, room)
     })
 
     onJoined(ClientEvents.INIT_STATE, async (_, me) => {
-        return locked(me.room, async () => {
-            await persistency.assertRoom(me.room)
-            emitOwnState(me, await persistency.getRoom(me.room))
-        })
+        const room = await persistency.getRoom(me.room)
+        emitOwnState(me, room)
     })
 
     onJoined(ClientEvents.REMOVE_USER, async (input, me) => {
         const data = parser.removeUser(input)
 
-        return locked(me.room, async () => {
-            await persistency.assertRoom(me.room)
+        // Disconnect user
+        const sockets = await io.in(me.room).fetchSockets()
+        for (const target of sockets.filter(it => it.data.user === data.user)) {
+            target.emit(ServerEvents.SHOW_NOTIFICATION, {message: `You have been removed by ${me.user} ...`})
+            target.disconnect(true)
+        }
 
-            // Disconnect user
-            const sockets = await io.in(me.room).fetchSockets()
-            const target = sockets.find(it => it.data.user === data.user)
-            if (target) {
-                target.emit(ServerEvents.SHOW_NOTIFICATION, {message: `You have been removed by ${me.user} ...`})
-                target.disconnect(true)
-            }
-
-            // Manually cleanup broken user (the target's own disconnect handler might never run)
-            await persistency.removeUser(me.room, data.user)
-            await persistency.removeVote(me.room, data.user)
-            await persistency.bump(me.room)
-
-            emitState(me, await persistency.getRoom(me.room))
-        })
+        // Update state (the target's own disconnect handler might never run, e.g., for broken users)
+        const room = await persistency.leave(me.room, data.user)
+        emitState(me, room)
     })
 
     onJoined(ClientEvents.CLOSE_ROOM, async (_, me) => {
-        return locked(me.room, async () => {
-            await persistency.assertRoom(me.room)
+        // Update state
+        await persistency.deleteRoom(me.room)
 
-            // Update state
-            await persistency.deleteRoom(me.room)
+        // Emit close room to room (including this socket)
+        console.log('server', me.room, 'emit', ServerEvents.CLOSE_ROOM)
+        io.to(me.room).emit(ServerEvents.CLOSE_ROOM)
 
-            // Emit close room to room (including this socket)
-            console.log('server', me.room, 'emit', ServerEvents.CLOSE_ROOM)
-            io.to(me.room).emit(ServerEvents.CLOSE_ROOM)
+        // Disconnect all sockets by force
+        io.in(me.room).disconnectSockets(true)
 
-            // Disconnect all sockets by force
-            io.in(me.room).disconnectSockets(true)
-
-            return false
-        })
+        return false
     })
 
     socket.on('disconnect', async reason => {
@@ -281,18 +227,14 @@ io.on('connection', socket => {
             // Reset data
             socket.data = {ok: false, id: socket.data.id}
 
-            await locked(me.room, async () => {
-                if (!(await persistency.hasRoom(me.room))) return
+            // Update state
+            const room = await persistency.leave(me.room, me.user)
 
-                // Update state
-                await persistency.removeUser(me.room, me.user)
-                await persistency.removeVote(me.room, me.user)
-                await persistency.bump(me.room)
-
-                // Emit state to room
-                emitRoomState(me.room, await persistency.getRoom(me.room))
-            })
+            // Emit state to room
+            emitRoomState(me.room, room)
         } catch (e) {
+            // Nothing to clean up if the room has been closed meanwhile
+            if (e instanceof RoomGone) return
             handleUnexpected(e)
         }
     })
@@ -323,6 +265,16 @@ io.on('connection', socket => {
         io.to(name).emit(ServerEvents.ROOM_STATE, toState(room))
     }
 
+    // Sends the current state to this socket, e.g., to reset its ballot after a vote which was not applied
+    function emitOwnRoom() {
+        if (!socket.data.ok) return
+        const me = {room: socket.data.room, user: socket.data.user}
+        persistency
+            .getRoom(me.room)
+            .then(room => emitOwnState(me, room))
+            .catch(handleUnexpected)
+    }
+
     function emitRoomGone() {
         console.log('server', socket.data.id, 'emit', ServerEvents.CLOSE_ROOM)
         socket.emit(ServerEvents.CLOSE_ROOM)
@@ -339,6 +291,10 @@ io.on('connection', socket => {
     function handleUnexpected(error: unknown) {
         if (error instanceof TooManyRequests) return emitError(error.message)
         if (error instanceof RoomGone) return emitRoomGone()
+        if (error instanceof RoomBusy) {
+            emitError(error.message)
+            return emitOwnRoom()
+        }
 
         if (parser.isInvalidInput(error)) {
             const issue = error.issues[0]

@@ -15,7 +15,7 @@ describe.each(persistencies)('server (%s)', persistency => {
 
         expect(await join(alice, room, 'alice')).toEqual({ok: true})
         expect(await join(bob, room, 'bob')).toEqual({ok: true})
-        await vi.waitFor(() => expect(alice.state?.users.map(it => it.name).sort()).toEqual(['alice', 'bob']))
+        await vi.waitFor(() => expect(alice.state?.users.map(it => it.name)).toEqual(['alice', 'bob']))
 
         expect(await ack(alice, ClientEvents.SET_VOTE, {vote: '1.3'})).toEqual({ok: true})
         await vi.waitFor(() => expect(bob.state?.voted).toEqual({alice: true}))
@@ -60,7 +60,7 @@ describe.each(persistencies)('server (%s)', persistency => {
         await disconnected
         expect(bob.notifications).toContain('You have been removed by alice ...')
 
-        await vi.waitFor(() => expect(carol.state?.users.map(it => it.name).sort()).toEqual(['alice', 'carol']))
+        await vi.waitFor(() => expect(carol.state?.users.map(it => it.name)).toEqual(['alice', 'carol']))
         expect(carol.state?.voted).toEqual({alice: true})
     })
 

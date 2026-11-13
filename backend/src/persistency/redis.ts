@@ -1,17 +1,31 @@
-import {randomUUID} from 'node:crypto'
 import Redis from 'ioredis'
-import {Votes} from '../../../spec/types'
-import * as config from "../config";
-import {Mutex, MutexInterface, withTimeout} from 'async-mutex'
-import {Lock, Persistency, RoomData, RoomGone, Seed} from './types'
+import * as config from '../config'
+import {revision, Room, Store} from './types'
 
+/**
+ * Stores the room only if the stored revision is still the expected one (empty if no room is stored).
+ * Redis executes scripts atomically, hence, this compare and set is atomic across all servers.
+ *
+ * KEYS: room
+ * ARGV: expected revision, new revision, room (json)
+ */
+const WRITE = `
+local current = redis.call('HGET', KEYS[1], 'revision') or ''
+if current ~= ARGV[1] then return 0 end
 
-export class PersistencyRedis implements Persistency {
-    private readonly mutexes: { [key: string]: MutexInterface } = {}
+redis.call('HSET', KEYS[1], 'revision', ARGV[2], 'room', ARGV[3])
+return 1
+`
+
+/**
+ * Keeps every room as hash room:{name} with the fields room (json) and revision (see revision()), so that multiple
+ * servers can share the rooms.
+ */
+export class RedisStore implements Store {
     private _redis?: Redis
 
     get redis() {
-        if (!this._redis) throw new Error("Redis not initialized")
+        if (!this._redis) throw new Error('Redis not initialized')
         return this._redis
     }
 
@@ -20,16 +34,11 @@ export class PersistencyRedis implements Persistency {
             host: config.redis,
             port: config.redisPort,
         })
+        this._redis.defineCommand('gradingpokerWrite', {numberOfKeys: 1, lua: WRITE})
     }
 
     async close() {
         await this._redis?.quit()
-    }
-
-    async lock(room: string): Promise<Lock> {
-        if (!this.mutexes[room]) this.mutexes[room] = withTimeout(new Mutex(), 2000)
-        await this.mutexes[room].acquire()
-        return this.mutexes[room]
     }
 
     async health() {
@@ -42,137 +51,27 @@ export class PersistencyRedis implements Persistency {
         }
     }
 
-    async setHidden(room: string, hidden: boolean) {
-        await this.redis.set(concatHiddenKey(room), String(hidden))
+    async get(name: string) {
+        const room = await this.redis.hget(key(name), 'room')
+        if (!room) return
+        return JSON.parse(room) as Room
     }
 
-    async hasUser(room: string, user: string) {
-        return await this.exists(concatUserKey(room, user))
+    async write(name: string, room: Room, expected: Room | undefined) {
+        const written = await (this.redis as any).gradingpokerWrite(
+            key(name),
+            revision(expected),
+            revision(room),
+            JSON.stringify(room)
+        )
+        return written === 1
     }
 
-    async addUser(room: string, user: string, avatar: string) {
-        await this.redis.set(concatUserKey(room, user), avatar)
-    }
-
-    async removeUser(room: string, user: string) {
-        await this.redis.del(concatUserKey(room, user))
-    }
-
-    async setVote(room: string, user: string, vote: string) {
-        await this.redis.set(concatVoteKey(room, user), vote)
-    }
-
-    async removeVote(room: string, user: string) {
-        await this.redis.del(concatVoteKey(room, user))
-    }
-
-    async hasRoom(room: string) {
-        return this.exists(concatHiddenKey(room))
-    }
-
-    async assertRoom(room: string) {
-        if (!(await this.hasRoom(room))) throw new RoomGone()
-    }
-
-    async addRoom(room: string, seed?: Seed) {
-        await this.redis.set(concat('room', room, 'id'), randomUUID())
-        await this.redis.set(concat('room', room, 'version'), 0)
-        await this.setHidden(room, true)
-
-        if (seed) {
-            await this.setHidden(room, seed.hidden)
-
-            for (const user of seed.users) {
-                await this.addUser(room, user.name, user.avatar)
-            }
-
-            for (const [user, vote] of Object.entries(seed.votes)) {
-                await this.setVote(room, user, vote)
-            }
-        }
-    }
-
-    async bump(room: string) {
-        await this.redis.incr(concat('room', room, 'version'))
-    }
-
-    async getRoom(room: string): Promise<RoomData> {
-        return {
-            id: (await this.redis.get(concat('room', room, 'id'))) ?? '',
-            version: Number(await this.redis.get(concat('room', room, 'version'))),
-            hidden: (await this.redis.get(concatHiddenKey(room))) === 'true',
-            users: Object.entries(await this.collect(concatUserKey(room, any))).map(([name, avatar]) => ({
-                name,
-                avatar,
-            })),
-            votes: await this.getVotes(room),
-        }
-    }
-
-    async getVotes(room: string): Promise<Votes> {
-        return await this.collect(concatVoteKey(room, any))
-    }
-
-
-    async deleteRoom(room: string) {
-        await new Promise((resolve, reject) => {
-            const collected: string[] = []
-            const stream = this.redis.scanStream({match: concat("room", room, "*")})
-            stream.on('data', (keys) => collected.push(...keys))
-            stream.on('error', reject)
-            stream.on("end", async () => {
-                await this.redis.del(collected)
-                return resolve(null)
-            })
-        })
-    }
-
-
-    private async collect(pattern: string): Promise<{ [key: string]: string }> {
-        return new Promise((resolve, reject) => {
-            const keys: string[] = []
-            const stream = this.redis.scanStream({match: pattern})
-            stream.on('data', (found) => keys.push(...found))
-            stream.on('error', reject)
-            stream.on("end", async () => {
-                const result: { [keys: string]: string } = {}
-                if (!keys.length) return resolve(result)
-                const values = await this.redis.mget(keys)
-                for (let i = 0; i < keys.length; i++) {
-                    const key = keys[i]
-                    const value = values[i]
-                    if (!value) return reject(`Key ${key} has no value`)
-                    result[last(key)] = value
-                }
-                return resolve(result)
-            })
-        })
-    }
-
-    private async exists(key: string): Promise<boolean> {
-        return (await this.redis.exists(key)) > 0
+    async delete(name: string) {
+        await this.redis.del(key(name))
     }
 }
 
-function last(key: string) {
-    const split = key.split(":")
-    return split[split.length - 1]!
+function key(name: string) {
+    return `room:${name}`
 }
-
-function concat(...data: string[]) {
-    return data.join(':')
-}
-
-function concatUserKey(room: string, user: string) {
-    return concat('room', room, 'user', user)
-}
-
-function concatVoteKey(room: string, user: string) {
-    return concat('room', room, 'vote', user)
-}
-
-function concatHiddenKey(room: string) {
-    return concat('room', room, 'hidden')
-}
-
-const any = '*'
