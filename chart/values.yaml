@@ -33,13 +33,14 @@ redis:
     limits:
       memory: 256Mi
 
-ingress:
+# Gateway API route (/socket.io to the backend, everything else to the frontend)
+route:
   enabled: true
-  className: nginx
   host: gradingpoker.rss.iste.uni-stuttgart.de
-  # Leave empty to serve plain HTTP
-  tlsSecretName: gradingpoker-tls
-  annotations:
-    # Keep idle websockets open
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  # Gateway (and optionally its listener) the route attaches to. TLS is terminated by that listener, and the Gateway
+  # must allow routes from the namespace of this release.
+  parentRefs:
+    - name: gateway
+      namespace: gateway
+      # sectionName: https
+  annotations: {}

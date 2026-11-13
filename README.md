@@ -51,7 +51,7 @@ A link is only shown if its variable is set.
 ## Production
 
 Install or upgrade the Helm chart with the commit tag printed by `./build-and-push.sh`.
-Settings such as the host, TLS secret, replicas and the Impressum/privacy URLs are in `chart/values.yaml`.
+Settings such as the host, the Gateway to attach to, replicas and the Impressum/privacy URLs are in `chart/values.yaml`.
 
 ```
 helm upgrade --install gradingpoker ./chart --namespace gradingpoker --create-namespace --set image.tag=<tag>
