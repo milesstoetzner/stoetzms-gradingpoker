@@ -92,8 +92,14 @@ export class TestServer {
 
     async stop() {
         this.clients.forEach(it => it.disconnect())
+        await this.kill()
+    }
+
+    // Stops the server gracefully (SIGTERM) without disconnecting its clients first
+    async kill() {
+        const exited = new Promise(resolve => this.process?.once('exit', resolve))
         this.process?.kill('SIGTERM')
-        await new Promise(resolve => this.process?.once('exit', resolve))
+        await exited
     }
 }
 

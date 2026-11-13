@@ -16,9 +16,12 @@ import {RateLimiter} from 'limiter'
 import * as parser from './parser'
 import {load} from './persistency'
 import {RoomBusy, RoomData, RoomGone} from './persistency/types'
+import {loadAdapter} from './adapter'
 
 const persistency = load()
 await persistency.init()
+
+const adapter = loadAdapter()
 
 let ready = true
 
@@ -57,6 +60,7 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, {}, SocketData
     path: config.path,
     // WebSocket only: long-polling would require sticky sessions when running multiple servers
     transports: ['websocket'],
+    adapter: adapter.adapter,
     cors: {
         origin: config.origin,
     },
@@ -394,6 +398,7 @@ async function shutdown(signal: string) {
         // Disconnected clients go offline and reconnect to another server, where they take over their user
         await io.close()
         await Promise.allSettled(disconnecting)
+        await adapter.close()
         await persistency.close()
         process.exit(0)
     } catch (e) {
