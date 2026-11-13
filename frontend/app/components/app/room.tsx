@@ -49,6 +49,8 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
         io(window.location.origin, {
             timeout: 2000,
             path: '/socket.io',
+            // WebSocket only: long-polling would require sticky sessions with multiple backend servers
+            transports: ['websocket'],
         })
     )
 

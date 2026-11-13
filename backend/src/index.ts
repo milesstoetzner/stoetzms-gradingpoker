@@ -34,6 +34,8 @@ type Me = {room: string; user: string}
 
 const io = new Server<ClientToServerEvents, ServerToClientEvents, {}, SocketData>({
     path: config.path,
+    // WebSocket only: long-polling would require sticky sessions when running multiple servers
+    transports: ['websocket'],
     cors: {
         origin: config.origin,
     },
