@@ -7,16 +7,28 @@ Planning poker for grading: examiners vote on a grade in secret, reveal all vote
 | <img src="docs/voting.png" width="380"> | <img src="docs/result.png" width="380"> | <img src="docs/phone.png" width="150"> |
 
 
+## Features
+
+- **Secret voting:** everyone votes hidden, and all votes are revealed at once.
+- **Grades and verdicts:** grades from 1.0 to 5.0, proposal verdicts (Passed, Rework, Failed) and general options (Supervisor, Withhold, Viewer).
+- **Result:** count, average, median, most frequent vote and distribution, downloadable as YAML.
+- **Discussion hint:** the users with the most opposite votes are marked to discuss.
+- **Anonymous comments:** revealed together with the votes, without names.
+- **Presentation mode:** hides your own vote and comment, for sharing your screen.
+- **Rooms without accounts:** join with a room and a user name, and share the room as a link.
+- **Reconnect:** if you lose the connection, you keep your seat and vote.
+- **Phones and tablets:** the room adapts to small screens.
+- **Scalable and highly available:** runs with several replicas of every component.
+
+
 ## Usage
 
 1. **Join:** enter a room and a user name (or keep the generated ones) and join. Share the room with the share button.
-2. **Vote:** pick a grade (1.0 to 5.0), a proposal verdict (Passed, Rework, Failed) or a general option (Supervisor, Withhold, Viewer). Your vote stays hidden until the votes are revealed.
+2. **Vote:** pick your vote. It stays hidden until the votes are revealed.
 3. **Comment (optional):** write a comment. It is revealed together with the votes and stays anonymous.
-4. **Reveal:** anyone clicks **Show Votes**. The result shows the count, average, median, most frequent vote and the distribution, and can be downloaded as YAML.
+4. **Reveal:** anyone clicks **Show Votes** to see the result.
 5. **Discuss:** the users with the most opposite votes get a **discuss** badge.
 6. **Next round:** **Hide Votes** hides them again; changing a vote does too.
-
-**Presentation mode** (screen icon) hides your own vote and comment field, for sharing your screen.
 
 
 ## Architecture
@@ -25,27 +37,26 @@ Planning poker for grading: examiners vote on a grade in secret, reveal all vote
 flowchart LR
     browser([Browser])
     gateway[Gateway]
-    frontend[Frontend<br/>nginx serving the SPA]
-    backend[Backend<br/>socket.io servers]
+    frontend[Frontend<br/>serves the SPA]
+    backend[Backend]
     redis[(Redis Cluster)]
 
     browser -- SPA --> gateway
     browser -- WebSocket --> gateway
-    gateway -- "/" --> frontend
-    gateway -- "/socket.io" --> backend
+    gateway --> frontend
+    gateway --> backend
     backend -- rooms and events --> redis
 ```
 
-- **Frontend:** a single-page app (Remix, React) served by nginx. It only talks to the backend over one WebSocket (socket.io, no long-polling), so any backend replica can serve any client without sticky sessions.
-- **Backend:** stateless Node.js servers (socket.io). All state is in Redis, so any backend can serve any room.
-- **Rooms:** a room is a few Redis hashes (users, votes, comments, and a version that increases with every change). Every operation is one small script that Redis runs atomically: a vote writes that user's vote and nothing else. So operations never wait for each other or conflict, and cost the same in small and large rooms.
-- **Updates:** a change is published in the same step as it is written, as an event with its version, on the room's own channel (Redis sharded pub/sub). A backend subscribes to the rooms it has users in and forwards the events to them. A client gets the full state when it joins and applies events afterwards.
-- **No missed updates:** a client only applies the event that is exactly one version ahead; if it sees a gap, it asks for the full state. A backend also tells its clients the current version of their room at a fixed interval (heartbeat, every 5 seconds by default, see `STOETZMS_GRADING_POKER_HEARTBEAT`), which catches a missed last update. Reconnecting always loads the full state.
-- **Avatars:** drawn by the client from the user name, so the same name has the same avatar everywhere and the server stores none.
-- **High availability:** Kubernetes restarts and replaces backends through `/healthz` and `/readyz`; a backend that shuts down marks its users as offline, and they reconnect to another replica and take over their seat by their browser session. Redis is a Redis Cluster: rooms are spread over the masters, and when a master fails its replica takes over within seconds, during which only the rooms on that master reject changes. Redis replicates asynchronously and keeps the rooms in memory only (the volume of a node only holds its cluster membership), so a failover can lose the last writes, and losing a master together with its replica loses their rooms.
-- **Scaling:** add backend replicas for more connections and Redis masters for more rooms (`backend.replicas` and `redis.replicaCount` in the chart). Backend and frontend can also scale with their CPU load (`autoscaling`, off by default). PodDisruptionBudgets keep node drains from taking down more than one backend, frontend or Redis node at a time.
-- **Limits:** each connection may send 30 requests per 30 seconds; names are at most 64 and comments at most 500 characters.
-- **Anonymous comments:** the author of a comment never leaves the backend. Clients get the comments only after the reveal, as texts sorted alphabetically.
+- **Stateless backends:** all rooms live in Redis, so any backend can serve any user of any room.
+- **Atomic changes:** every change of a room is one atomic step. Changes never conflict or wait for each other, in small and large rooms alike.
+- **Events:** every change is published to everyone in the room. A client loads the room once and applies the changes afterwards.
+- **No missed updates:** changes are numbered. A client that notices a gap, or learns from the regular heartbeat that it is behind, loads the room again.
+- **High availability:** every component runs replicated. If a backend fails, its users reconnect to another one and keep their seat. If a Redis node fails, its replica takes over.
+- **Ephemeral rooms:** rooms are kept in memory only, so a Redis failover can lose the last changes.
+- **Scaling:** more backends serve more users, more Redis nodes hold more rooms.
+- **Anonymity:** the author of a comment never leaves the backend.
+
 
 ## Dev 
 
