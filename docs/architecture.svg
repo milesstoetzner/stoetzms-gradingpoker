@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 210" width="760" height="210" role="img" aria-label="Architecture: several frontends (SPA) talk to several backends (stateless Node.js), which share a Redis in Cluster Mode">
+  <style>
+    .box { fill: #f6f8fa; stroke: #57606a; stroke-width: 1.5; }
+    .line { fill: none; stroke: #8b949e; stroke-width: 1.5; }
+    .node { fill: #ffffff; stroke: #57606a; stroke-width: 1.5; }
+    .rim { fill: none; stroke: #57606a; stroke-width: 1.5; }
+    .group { fill: #f6f8fa; stroke: #57606a; stroke-width: 1.5; stroke-dasharray: 5 4; }
+    .head { fill: #8b949e; }
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; text-anchor: middle; fill: #24292f; }
+    .title { font-size: 16px; font-weight: 600; }
+    .sub { font-size: 13px; }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path class="head" d="M0,0 L10,5 L0,10 Z"/>
+    </marker>
+  </defs>
+  <rect class="box" x="48" y="52" width="170" height="84" rx="8"/>
+  <rect class="box" x="39" y="61" width="170" height="84" rx="8"/>
+  <rect class="box" x="30" y="70" width="170" height="84" rx="8"/>
+  <text class="title" x="115.0" y="108.0">Frontend</text>
+  <text class="sub" x="115.0" y="130.0">(SPA)</text>
+  <path class="line" d="M218,112.0 H288" marker-end="url(#arrow)"/>
+  <rect class="box" x="308" y="52" width="170" height="84" rx="8"/>
+  <rect class="box" x="299" y="61" width="170" height="84" rx="8"/>
+  <rect class="box" x="290" y="70" width="170" height="84" rx="8"/>
+  <text class="title" x="375.0" y="108.0">Backend</text>
+  <text class="sub" x="375.0" y="130.0">(stateless Node.js)</text>
+  <path class="line" d="M478,112.0 H550" marker-end="url(#arrow)"/>
+  <rect class="group" x="552" y="34" width="180" height="150" rx="10"/>
+  <path class="node" d="M570,57 v32 a20.0,7 0 0 0 40,0 v-32 a20.0,7 0 0 0 -40,0 Z"/>
+  <path class="rim" d="M570,57 a20.0,7 0 0 0 40,0"/>
+  <path class="node" d="M622,57 v32 a20.0,7 0 0 0 40,0 v-32 a20.0,7 0 0 0 -40,0 Z"/>
+  <path class="rim" d="M622,57 a20.0,7 0 0 0 40,0"/>
+  <path class="node" d="M674,57 v32 a20.0,7 0 0 0 40,0 v-32 a20.0,7 0 0 0 -40,0 Z"/>
+  <path class="rim" d="M674,57 a20.0,7 0 0 0 40,0"/>
+  <text class="title" x="642.0" y="132">Redis</text>
+  <text class="sub" x="642.0" y="154">(Cluster Mode)</text>
+</svg>

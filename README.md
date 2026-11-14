@@ -31,17 +31,7 @@ Planning poker for grading: examiners vote on a grade in secret, reveal all vote
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    user([User])
-    frontend[Frontend]
-    backend[Backend]
-    redis[(Redis)]
-
-    user -- loads the app --> frontend
-    user -- votes and updates --> backend
-    backend -- rooms --> redis
-```
+<img src="docs/architecture.svg" alt="Several frontends (SPA) talk to several backends (stateless Node.js), which share a Redis in Cluster Mode" width="760">
 
 - **Stateless backends:** all rooms live in Redis, so any backend can serve any user of any room.
 - **Atomic changes:** every change of a room is one atomic step.
