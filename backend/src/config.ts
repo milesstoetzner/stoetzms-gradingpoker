@@ -15,4 +15,4 @@ export const offlineGrace = Number(process.env.STOETZMS_GRADING_POKER_OFFLINE_GR
 // Seconds after the last change of a room until it is deleted
 export const roomTtl = Number(process.env.STOETZMS_GRADING_POKER_ROOM_TTL ?? 7 * 24 * 60 * 60)
 // Seconds between heartbeats, which tell clients the current version of their room and remove expired offline users
-export const heartbeat = Number(process.env.STOETZMS_GRADING_POKER_HEARTBEAT ?? 30)
+export const heartbeat = Number(process.env.STOETZMS_GRADING_POKER_HEARTBEAT ?? 5)
