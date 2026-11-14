@@ -1,10 +1,12 @@
 FROM node:22-alpine AS build
 LABEL org.opencontainers.image.source=https://github.com/milesstoetzner/stoetzms-gradingpoker
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# pnpm in the version pinned by packageManager in package.json
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable
 WORKDIR /app
 COPY frontend/package.json .
 COPY frontend/pnpm-lock.yaml .
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 COPY frontend .
 COPY spec ../spec
 RUN pnpm run build

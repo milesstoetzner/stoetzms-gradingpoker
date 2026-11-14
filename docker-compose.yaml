@@ -4,8 +4,6 @@ services:
       dockerfile: frontend/Dockerfile
       context: .
     restart: unless-stopped
-    environment:
-      STOETZMS_GRADING_POKER_IMPRESSUM_URL: https://www.uni-stuttgart.de/impressum
     ports:
       - '4001:80'
 

@@ -106,7 +106,7 @@ A link is only shown if its variable is set.
 ## Production
 
 Install or upgrade a released chart.
-Settings such as the host, the Gateway to attach to, replicas and the Impressum/privacy URLs are in `chart/values.yaml`.
+Settings such as the host, the Gateway to attach to, replicas and the Impressum/privacy URLs are in `chart/values.yaml`; keep your own in a values file (e.g. the git-ignored `chart/values.local.yaml`) and pass it with `-f`.
 Redis runs with Redis Sentinel from the [CloudPirates Redis chart](https://github.com/CloudPirates-io/helm-charts/tree/main/charts/redis), a dependency of the chart.
 
 ```

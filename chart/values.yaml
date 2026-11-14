@@ -20,7 +20,7 @@ backend:
 frontend:
   replicas: 2
   # Links below the join card, only shown if set
-  impressumUrl: https://www.uni-stuttgart.de/impressum
+  impressumUrl: ""
   privacyUrl: ""
   resources: {}
 
@@ -59,7 +59,7 @@ redis:
 # Gateway API route (/socket.io to the backend, everything else to the frontend)
 route:
   enabled: true
-  host: gradingpoker.rss.iste.uni-stuttgart.de
+  host: gradingpoker.example.com
   # Gateway (and optionally its listener) the route attaches to. TLS is terminated by that listener, and the Gateway
   # must allow routes from the namespace of this release.
   parentRefs:

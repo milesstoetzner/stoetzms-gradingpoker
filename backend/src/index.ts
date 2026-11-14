@@ -61,9 +61,7 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, {}, SocketData
     // WebSocket only: long-polling would require sticky sessions when running multiple servers
     transports: ['websocket'],
     adapter: adapter.adapter,
-    cors: {
-        origin: config.origin,
-    },
+    cors: config.origin ? {origin: config.origin} : undefined,
     // Disconnects are no longer destructive (users go offline and keep their vote), so be lenient with mobile networks
     pingInterval: 10000,
     pingTimeout: 10000,

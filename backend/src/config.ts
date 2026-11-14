@@ -1,5 +1,6 @@
 export const debug = process.env.NODE_ENV !== 'production'
-export const origin = process.env.STOETZMS_GRADING_POKER_ORIGIN ?? '*'
+// Origin allowed to connect from another site (CORS). Not needed if frontend and backend share one origin
+export const origin = process.env.STOETZMS_GRADING_POKER_ORIGIN || undefined
 export const path = process.env.STOETZMS_GRADING_POKER_PATH ?? '/socket.io'
 export const port = Number(process.env.STOETZMS_GRADING_POKER_PORT ?? 3000)
 export const store = process.env.STOETZMS_GRADING_POKER_STORE ?? 'memory'
