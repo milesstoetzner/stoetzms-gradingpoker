@@ -25,13 +25,11 @@ spec:
           env:
             - name: STOETZMS_GRADING_POKER_STORE
               value: redis
-            # The Sentinels, which tell the backend the current Redis master
+            # Any node of the Redis Cluster, the backend learns the others from it
             - name: STOETZMS_GRADING_POKER_REDIS_HOST
-              value: {{ include "gradingpoker.name" (dict "root" . "component" "redis-sentinel") }}
-            - name: STOETZMS_GRADING_POKER_REDIS_PORT
-              value: "26379"
-            - name: STOETZMS_GRADING_POKER_REDIS_SENTINEL
-              value: {{ .Values.redis.sentinel.masterName | quote }}
+              value: {{ include "gradingpoker.name" (dict "root" . "component" "redis") }}
+            - name: STOETZMS_GRADING_POKER_REDIS_CLUSTER
+              value: "true"
             - name: STOETZMS_GRADING_POKER_REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:

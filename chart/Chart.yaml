@@ -1,6 +1,6 @@
 apiVersion: v2
 name: gradingpoker
-description: gradingpoker.stoetz.ms (frontend, backend replicas and a shared Redis with Sentinel)
+description: gradingpoker.stoetz.ms (frontend, backend replicas and a shared Redis Cluster)
 type: application
 version: 0.1.0
 dependencies:

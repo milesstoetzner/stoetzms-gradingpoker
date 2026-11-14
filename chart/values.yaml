@@ -25,25 +25,24 @@ frontend:
   resources: {}
 
 # Shared state of all backend replicas (rooms and socket.io pub/sub), see https://github.com/CloudPirates-io/helm-charts
-# (charts/redis). Three Redis instances, each with a Sentinel next to it: the Sentinels promote a replica when the
-# master fails, and the backend asks them for the current master.
+# (charts/redis). A Redis Cluster: the rooms and their pub/sub channels are spread over the masters, and every master
+# has a replica that takes over if it fails. The backend talks to the node that owns a room.
 redis:
-  architecture: replication
-  replicaCount: 3
-  sentinel:
-    enabled: true
-    masterName: gradingpoker
-    quorum: 2
-    resources:
-      requests:
-        cpu: 20m
-        memory: 32Mi
-      limits:
-        memory: 64Mi
-  # Rooms are ephemeral, hence, nothing is written to disk. A restarted instance syncs from the current master.
+  architecture: cluster
+  # All nodes: 3 masters, each with 1 replica. Add masters for more capacity (keep it a multiple of clusterReplicaCount + 1)
+  replicaCount: 6
+  clusterReplicaCount: 1
+  cluster:
+    # A restarted master comes back empty and must not rejoin before its replica took over
+    startupSleepTime: 20
+    config:
+      nodeTimeout: 5000
+  # A small volume per node, only for the node's cluster membership: without it, a restarted node comes back as a
+  # stranger and never rejoins the cluster. The rooms themselves are ephemeral and not written to disk (see below).
   persistence:
-    enabled: false
-  # noeviction: writes fail loudly rather than silently evicting rooms
+    enabled: true
+    size: 1Gi
+  # Per node. noeviction: writes fail loudly rather than silently evicting rooms
   extraConfig: |
     maxmemory 200mb
     maxmemory-policy noeviction

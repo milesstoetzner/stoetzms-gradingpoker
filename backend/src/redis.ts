@@ -1,25 +1,20 @@
-import Redis, {RedisOptions} from 'ioredis'
+import Redis, {Cluster} from 'ioredis'
 import * as config from './config'
 
+export type Connection = Redis | Cluster
+
 /**
- * Connects to Redis, directly or through Redis Sentinel.
+ * Connects to a single Redis or, if configured, to a Redis Cluster.
  *
- * With Sentinel, the configured host and port are those of the Sentinels, which are asked for the current master on
- * every (re)connect, so that a connection follows a failover.
+ * With a cluster, the configured host and port are those of any node (e.g., a service in front of all nodes). The
+ * client learns the other nodes from it, sends every key to the node that owns it and follows failovers.
  */
-export function connect(): Redis {
-    return new Redis(options())
-}
+export function connect(): Connection {
+    if (!config.redisCluster) return new Redis({host: config.redis, port: config.redisPort, password: config.redisPassword})
 
-export function options(): RedisOptions {
-    if (!config.redisSentinel) return {host: config.redis, port: config.redisPort, password: config.redisPassword}
-
-    return {
-        sentinels: [{host: config.redis, port: config.redisPort}],
-        name: config.redisSentinel,
-        password: config.redisPassword,
-        sentinelPassword: config.redisPassword,
-        // A master that was demoted while we are still connected rejects writes: ask the Sentinels again and resend
-        reconnectOnError: error => (error.message.startsWith('READONLY') ? 2 : false),
-    }
+    return new Cluster([{host: config.redis, port: config.redisPort}], {
+        // Required for the sharded pub/sub of the socket.io adapter: one subscriber connection per shard
+        shardedSubscribers: true,
+        redisOptions: {password: config.redisPassword},
+    })
 }

@@ -1,5 +1,4 @@
-import Redis from 'ioredis'
-import {connect} from '../redis'
+import {connect, Connection} from '../redis'
 import {revision, Room, Store} from './types'
 
 /**
@@ -23,7 +22,7 @@ return 1
  * servers can share the rooms. Rooms without changes for the TTL expire, i.e., are deleted by Redis itself.
  */
 export class RedisStore implements Store {
-    private _redis?: Redis
+    private _redis?: Connection
 
     // ttl: seconds after the last change until a room is deleted
     constructor(private readonly ttl: number) {}

@@ -28,15 +28,16 @@ Also:
 ## Architecture
 
 ```
-browser ── WebSocket ──> Gateway ──> backend (2 replicas) ──> Redis (3 instances + Sentinel)
+browser ── WebSocket ──> Gateway ──> backend (2 replicas) ──> Redis Cluster (3 masters + 3 replicas)
         └─ static files ─────────> frontend (2 replicas)
 ```
 
 - **Frontend:** a single-page app (Remix, React) served by nginx. It only talks to the backend over one WebSocket (socket.io, no long-polling), so any backend replica can serve any client without sticky sessions.
-- **Backend:** stateless Node.js servers (socket.io). All state is in the store: `memory` for development, `redis` for production. The socket.io Redis adapter forwards room broadcasts between the replicas.
+- **Backend:** stateless Node.js servers (socket.io). All state is in the store: `memory` for development, `redis` for production. Room broadcasts go between the replicas through Redis sharded pub/sub: every room has its own channel and a backend only subscribes to the rooms it has users in, so a broadcast only reaches the backends that serve the room.
 - **Rooms:** one record per room (users, votes, comments, a version). Every change is sent to the room as the full state with its version, and clients ignore states older than the one they have.
 - **Consistency:** every operation on a room is atomic without locks. The backend reads the room, changes a copy and writes it only if the room is still at the version it read (one compare-and-set script in Redis); otherwise it starts over. Clicks give up after 3 attempts ("Room is busy"), joins and housekeeping retry longer.
-- **High availability:** Kubernetes restarts and replaces backends through `/healthz` and `/readyz`; a backend that shuts down marks its users as offline, and they reconnect to another replica and take over their seat by their browser session. Redis Sentinel promotes a replica when the Redis master fails, and the backends ask the Sentinels for the current master. Redis replicates asynchronously and stores nothing on disk, so a failover can lose the last writes, and losing all Redis instances loses the open rooms.
+- **High availability:** Kubernetes restarts and replaces backends through `/healthz` and `/readyz`; a backend that shuts down marks its users as offline, and they reconnect to another replica and take over their seat by their browser session. Redis is a Redis Cluster: rooms are spread over the masters, and when a master fails its replica takes over within seconds, during which only the rooms on that master reject changes. Redis replicates asynchronously and keeps the rooms in memory only (the volume of a node only holds its cluster membership), so a failover can lose the last writes, and losing a master together with its replica loses their rooms.
+- **Scaling:** add backend replicas for more connections and Redis masters for more rooms (`backend.replicas` and `redis.replicaCount` in the chart).
 - **Limits:** each connection may send 30 requests per 30 seconds; names are at most 64 and comments at most 500 characters.
 - **Anonymous comments:** the author of a comment never leaves the backend. Clients get the comments only after the reveal, as texts sorted alphabetically.
 
@@ -107,7 +108,7 @@ A link is only shown if its variable is set.
 
 Install or upgrade a released chart.
 Settings such as the host, the Gateway to attach to, replicas and the Impressum/privacy URLs are in `chart/values.yaml`; keep your own in a values file (e.g. the git-ignored `chart/values.local.yaml`) and pass it with `-f`.
-Redis runs with Redis Sentinel from the [CloudPirates Redis chart](https://github.com/CloudPirates-io/helm-charts/tree/main/charts/redis), a dependency of the chart.
+Redis runs as a Redis Cluster from the [CloudPirates Redis chart](https://github.com/CloudPirates-io/helm-charts/tree/main/charts/redis), a dependency of the chart. Do not pass `--wait` on the first install: that chart forms the cluster in a hook after the install, and the backends only become ready once the cluster exists.
 
 ```
 helm upgrade --install gradingpoker oci://ghcr.io/milesstoetzner/charts/gradingpoker --version <version> --namespace gradingpoker --create-namespace
