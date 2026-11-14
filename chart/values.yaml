@@ -7,6 +7,12 @@ image:
 
 backend:
   replicas: 2
+  # Seconds a user who lost the connection keeps their seat and vote
+  offlineGrace: 600
+  # Seconds without changes after which a room is deleted (7 days)
+  roomTtl: 604800
+  # Seconds between the heartbeats that tell clients the current version of their room
+  heartbeat: 5
   # Scales the replicas with the CPU load (HorizontalPodAutoscaler) instead of the fixed number above.
   # Connections are long-lived: a new replica only gets new connections, and removing a replica disconnects its
   # users, who reconnect to another replica and keep their seat.
@@ -19,7 +25,7 @@ backend:
   pdb:
     enabled: true
     maxUnavailable: 1
-  # Additional environment variables, e.g. STOETZMS_GRADING_POKER_OFFLINE_GRACE (see backend/src/config.ts)
+  # Additional environment variables (see backend/src/config.ts)
   env: {}
   resources:
     requests:

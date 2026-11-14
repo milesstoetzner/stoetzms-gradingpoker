@@ -35,6 +35,12 @@ spec:
                 secretKeyRef:
                   name: {{ include "gradingpoker.name" (dict "root" . "component" "redis") }}
                   key: redis-password
+            - name: STOETZMS_GRADING_POKER_OFFLINE_GRACE
+              value: {{ .Values.backend.offlineGrace | quote }}
+            - name: STOETZMS_GRADING_POKER_ROOM_TTL
+              value: {{ .Values.backend.roomTtl | quote }}
+            - name: STOETZMS_GRADING_POKER_HEARTBEAT
+              value: {{ .Values.backend.heartbeat | quote }}
             {{- range $name, $value := .Values.backend.env }}
             - name: {{ $name }}
               value: {{ $value | quote }}

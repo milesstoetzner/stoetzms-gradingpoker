@@ -1,9 +1,10 @@
 name: Release
 
-# A tag v<version> (e.g. v1.2.0) runs the checks and then publishes the images and the Helm chart as <version>.
+# A version tag (e.g. 1.2.0, without a leading v) runs the checks and then publishes the images and the Helm chart
+# in that version.
 on:
   push:
-    tags: ['v*']
+    tags: ['[0-9]+.[0-9]+.[0-9]+*']
 
 permissions:
   contents: read
@@ -26,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
         with:
@@ -54,7 +55,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
       - uses: azure/setup-helm@v5
       - run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
       - run: helm dependency build chart

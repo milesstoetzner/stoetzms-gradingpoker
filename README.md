@@ -90,33 +90,27 @@ cd frontend && pnpm test
 
 Pull requests and merges to `main` run the checks (`.github/workflows/ci.yaml`).
 
-Pushing a tag `v<version>` runs the checks and then publishes that version (`.github/workflows/release.yaml`):
+Pushing a version tag (without a leading `v`) runs the checks and then publishes that version (`.github/workflows/release.yaml`):
 
 - the images `ghcr.io/milesstoetzner/stoetzms-gradingpoker:backend-<version>` and `:frontend-<version>`,
 - the Helm chart `oci://ghcr.io/milesstoetzner/charts/gradingpoker` in the same version, which uses those images by default.
 
 ```
-git tag v1.0.0 && git push origin v1.0.0
+git tag 1.0.0 && git push origin 1.0.0
 ```
 
 
 ## Configuration
 
-Environment variables of the backend (in the chart: `backend.env`).
+Environment variables of the images, and the chart values that set them. Other backend variables can be set through `backend.env`.
 
-| Variable                              | Default  | Description                                                                                   |
-|---------------------------------------|----------|-----------------------------------------------------------------------------------------------|
-| `STOETZMS_GRADING_POKER_OFFLINE_GRACE` | `600`    | Seconds a user who lost the connection keeps their seat and vote, and can reconnect into them |
-| `STOETZMS_GRADING_POKER_ROOM_TTL`      | `604800` | Seconds without changes after which a room is deleted (7 days)                                |
-| `STOETZMS_GRADING_POKER_HEARTBEAT`     | `5`      | Seconds between the heartbeats that tell clients the current version of their room            |
-
-Environment variables of the frontend (in the chart: `frontend.impressumUrl` and `frontend.privacyUrl`).
-A link is only shown below the join card if its variable is set.
-
-| Variable                               | Description                                                                       |
-|----------------------------------------|-----------------------------------------------------------------------------------|
-| `STOETZMS_GRADING_POKER_IMPRESSUM_URL` | URL of your existing Impressum page (the page with the operator's name and contact) |
-| `STOETZMS_GRADING_POKER_PRIVACY_URL`   | URL of your existing privacy policy                                               |
+| Variable                               | Chart value             | Default  | Description                                                              |
+|----------------------------------------|-------------------------|----------|--------------------------------------------------------------------------|
+| `STOETZMS_GRADING_POKER_OFFLINE_GRACE` | `backend.offlineGrace`  | `600`    | Backend: seconds a user who lost the connection keeps their seat and vote |
+| `STOETZMS_GRADING_POKER_ROOM_TTL`      | `backend.roomTtl`       | `604800` | Backend: seconds without changes after which a room is deleted (7 days)   |
+| `STOETZMS_GRADING_POKER_HEARTBEAT`     | `backend.heartbeat`     | `5`      | Backend: seconds between the heartbeats that tell clients the current version of their room |
+| `STOETZMS_GRADING_POKER_IMPRESSUM_URL` | `frontend.impressumUrl` | not set  | Frontend: URL of your existing Impressum page, linked below the join card if set |
+| `STOETZMS_GRADING_POKER_PRIVACY_URL`   | `frontend.privacyUrl`   | not set  | Frontend: URL of your existing privacy policy, linked next to it if set  |
 
 
 ## Production
