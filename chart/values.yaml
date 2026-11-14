@@ -8,6 +8,18 @@ image:
 
 backend:
   replicas: 2
+  # Scales the replicas with the CPU load (HorizontalPodAutoscaler) instead of the fixed number above.
+  # Connections are long-lived: a new replica only gets new connections, and removing a replica disconnects its
+  # users, who reconnect to another replica and keep their seat.
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+  # Limits how many replicas may be down at once for planned disruptions like node drains (PodDisruptionBudget)
+  pdb:
+    enabled: true
+    maxUnavailable: 1
   # Additional environment variables, e.g. STOETZMS_GRADING_POKER_OFFLINE_GRACE (see backend/src/config.ts)
   env: {}
   resources:
@@ -19,10 +31,25 @@ backend:
 
 frontend:
   replicas: 2
+  # Scales the replicas with the CPU load (HorizontalPodAutoscaler) instead of the fixed number above.
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+  # Limits how many replicas may be down at once for planned disruptions like node drains (PodDisruptionBudget)
+  pdb:
+    enabled: true
+    maxUnavailable: 1
   # Links below the join card, only shown if set
   impressumUrl: ""
   privacyUrl: ""
-  resources: {}
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
 
 # Shared state of all backend replicas (rooms and socket.io pub/sub), see https://github.com/CloudPirates-io/helm-charts
 # (charts/redis). A Redis Cluster: the rooms and their pub/sub channels are spread over the masters, and every master
@@ -42,6 +69,11 @@ redis:
   persistence:
     enabled: true
     size: 1Gi
+  # At most one Redis node may be down at once for planned disruptions, so a master and its replica never go together
+  pdb:
+    enabled: true
+    minAvailable: ""
+    maxUnavailable: 1
   # Per node. noeviction: writes fail loudly rather than silently evicting rooms
   extraConfig: |
     maxmemory 200mb

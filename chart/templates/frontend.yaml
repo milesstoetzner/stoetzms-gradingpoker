@@ -6,7 +6,9 @@ metadata:
   labels:
     {{- include "gradingpoker.labels" $ctx | nindent 4 }}
 spec:
+  {{- if not .Values.frontend.autoscaling.enabled }}
   replicas: {{ .Values.frontend.replicas }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "gradingpoker.selectorLabels" $ctx | nindent 6 }}

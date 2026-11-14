@@ -6,7 +6,9 @@ metadata:
   labels:
     {{- include "gradingpoker.labels" $ctx | nindent 4 }}
 spec:
+  {{- if not .Values.backend.autoscaling.enabled }}
   replicas: {{ .Values.backend.replicas }}
+  {{- end }}
   strategy:
     rollingUpdate:
       maxUnavailable: 0
