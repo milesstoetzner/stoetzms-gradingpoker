@@ -14,7 +14,7 @@ import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVal
 import {User} from "../../../../spec/types";
 
 
-export default function Kick(props: { users: User[], me: string, onClick: (value: string) => void, disabled: boolean }) {
+export default function Kick(props: { users: User[], me: string, onClick: (value: string) => void, disabled: boolean, pending?: boolean }) {
     const [user, setUser] = useState<string | undefined>()
 
     const [open, setOpen] = useState<boolean>(false)
@@ -40,7 +40,7 @@ export default function Kick(props: { users: User[], me: string, onClick: (value
     return <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogTrigger asChild>
             <Button type="submit" className="w-full" variant="secondary"
-                    disabled={props.disabled || !others.length}>
+                    disabled={props.disabled || !others.length || props.pending}>
                 <UserX/> Remove User
             </Button>
         </DialogTrigger>

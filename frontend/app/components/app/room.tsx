@@ -64,11 +64,14 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
 
     React.useEffect(() => {
         let id: string
+        // Whether we were in the room before, i.e., failed connects are attempts to reconnect
+        let lost = false
         socket.connect()
 
         socket.on('connect', () => {
             id = socket.id!
             console.log('socket', id, 'on', 'connect')
+            lost = false
             setConnected(true)
             setError(undefined)
 
@@ -91,12 +94,14 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
             if (reason === 'io server disconnect') {
                 onLocalBack()
             } else {
-                setError('No connection ...')
+                lost = true
+                setError('Connection lost, reconnecting ...')
             }
         })
 
         socket.on('connect_error', error => {
             console.log('socket', id, 'on', 'connect_error', error)
+            setError(lost ? 'Connection lost, reconnecting ...' : 'Cannot reach the server, retrying ...')
         })
 
         socket.on(ServerEvents.ROOM_STATE, (data: RoomState) => {
@@ -142,29 +147,43 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
     const [vote, setVote] = React.useState<string>('')
     const [presentation, setPresentation] = React.useState<boolean>(false)
 
+    // Requests waiting for their ack, to prevent double submits
+    const [pending, setPending] = React.useState<Set<string>>(new Set())
+    const isPending = (key: string) => pending.has(key)
+
+    function request(key: string, event: ClientEvents, data?: unknown, onAck?: (response: Response) => void) {
+        console.log('socket', socket.id, 'emit', event, debug ? data : HIDDEN)
+        setPending(prev => new Set(prev).add(key))
+
+        const done = (error: Error | null, response?: Response) => {
+            console.log('socket', socket.id, 'ack', event, error ? error.message : response)
+            setPending(prev => {
+                const next = new Set(prev)
+                next.delete(key)
+                return next
+            })
+            if (response && onAck) onAck(response)
+        }
+
+        // Rate limited or failed requests are never acked, hence, the timeout
+        const emitter = socket.timeout(5000) as any
+        if (data === undefined) emitter.emit(event, done)
+        else emitter.emit(event, data, done)
+    }
+
     function onVoteChange(vote: string) {
         // Voting hides votes on the server, the room state follows
         setVote(vote)
 
-        const data = {vote}
-        console.log('socket', socket.id, 'emit', ClientEvents.SET_VOTE, debug ? data : HIDDEN)
-        socket.emit(ClientEvents.SET_VOTE, data, (data: Response) => {
-            console.log('socket', socket.id, 'ack', ClientEvents.SET_VOTE, data)
-        })
+        request('vote', ClientEvents.SET_VOTE, {vote})
     }
 
     function onLocalShowVotes() {
-        console.log('socket', socket.id, 'emit', ClientEvents.SHOW_VOTES)
-        socket.emit(ClientEvents.SHOW_VOTES, (data: Response) => {
-            console.log('socket', socket.id, 'ack', ClientEvents.SHOW_VOTES, data)
-        })
+        request('show', ClientEvents.SHOW_VOTES)
     }
 
     function onLocalHideVotes() {
-        console.log('socket', socket.id, 'emit', ClientEvents.HIDE_VOTES)
-        socket.emit(ClientEvents.HIDE_VOTES, (data: Response) => {
-            console.log('socket', socket.id, 'ack', ClientEvents.HIDE_VOTES, data)
-        })
+        request('hide', ClientEvents.HIDE_VOTES)
     }
 
     function onLocalBack() {
@@ -173,24 +192,16 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
     }
 
     function onLocalCloseRoom() {
-        console.log('socket', socket.id, 'emit', ClientEvents.CLOSE_ROOM)
         // The server answers with close room to everyone (including us) instead of an ack
-        socket.emit(ClientEvents.CLOSE_ROOM, () => {})
+        request('close', ClientEvents.CLOSE_ROOM)
     }
 
     function onRemoveUser(user: string) {
-        console.log('socket', socket.id, 'emit', ClientEvents.REMOVE_USER)
-        socket.emit(ClientEvents.REMOVE_USER, {user}, (data: Response) => {
-            console.log('socket', socket.id, 'ack', ClientEvents.REMOVE_USER, data)
-        })
+        request('remove', ClientEvents.REMOVE_USER, {user})
     }
 
     function onRefresh() {
-        console.log('socket', socket.id, 'on', ClientEvents.INIT_STATE)
-        socket.emit(ClientEvents.INIT_STATE, (data: Response) => {
-            console.log('socket', socket.id, 'ack', ClientEvents.INIT_STATE, data)
-            toast('Refreshed ...')
-        })
+        request('refresh', ClientEvents.INIT_STATE, undefined, () => toast('Refreshed ...'))
     }
 
     // Closing or reloading the tab only drops the connection (the user stays offline with their vote and is taken
@@ -225,7 +236,9 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
 
             <Error error={error}/>
 
-            {joined && <Card className="overflow-hidden p-0 shadow-none">
+            {!joined && <JoiningCard room={props.room}/>}
+
+            {joined && <Card className="overflow-hidden p-0 shadow-none animate-in fade-in duration-300">
                 <div className="grid p-0 md:grid-cols-2">
                     <div className="flex flex-col gap-6">
                         <CardHeader
@@ -243,7 +256,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
 
 
                                 <Hover message="Refresh Room">
-                                <Button variant="outline" className="size-8" onClick={onRefresh}>
+                                <Button variant="outline" className="size-8" onClick={onRefresh} disabled={!connected || isPending('refresh')}>
                                     <RefreshCw size="icon"/>
                                 </Button>
                                 </Hover>
@@ -264,7 +277,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                 </TableHeader>
                                 <TableBody>
                                     {users.map(user => (
-                                        <TableRow key={user.name}>
+                                        <TableRow key={user.name} className="animate-in fade-in duration-300">
                                             <TableCell>
                                                 <Avatar style={{borderWidth: '1px'}} className={user.online ? '' : 'opacity-40'}>
                                                     <AvatarImage
@@ -287,7 +300,9 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                                     hidden ? (
                                                         <Hidden/>
                                                     ) : (
-                                                        <Vote vote={votes[user.name]}/>
+                                                        <span className="block animate-in fade-in zoom-in-95 duration-300">
+                                                            <Vote vote={votes[user.name]}/>
+                                                        </span>
                                                     )
                                                 ) : (
                                                     'Still voting ...'
@@ -304,17 +319,18 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                 type="submit"
                                 className="w-full"
                                 onClick={onLocalShowVotes}
-                                disabled={!Object.values(voted).length || !connected}
+                                disabled={!Object.values(voted).length || !connected || isPending('show')}
                             >
                                 <Eye/> Show Votes
                             </Button>
 
                             <Button type="submit" className="w-full" variant="secondary" onClick={onLocalHideVotes}
-                                    disabled={!connected}>
+                                    disabled={!connected || isPending('hide')}>
                                 <EyeOff/> Hide Votes
                             </Button>
 
-                            <Kick users={users} me={props.user} onClick={onRemoveUser} disabled={!connected}/>
+                            <Kick users={users} me={props.user} onClick={onRemoveUser} disabled={!connected}
+                                  pending={isPending('remove')}/>
 
                             <Dialog>
                                 <DialogTrigger asChild>
@@ -335,7 +351,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                         <DialogClose asChild>
                                             <Button variant="outline">No</Button>
                                         </DialogClose>
-                                        <Button type="submit" onClick={onLocalCloseRoom}>
+                                        <Button type="submit" onClick={onLocalCloseRoom} disabled={isPending('close')}>
                                             Yes
                                         </Button>
                                     </DialogFooter>
@@ -355,7 +371,9 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                 <p className="text-sm text-center">Still voting ...</p>
                             </div>
                         ) : (
-                            <ResultContent room={props.room} votes={votes} users={users}/>
+                            <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                <ResultContent room={props.room} votes={votes} users={users}/>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -401,5 +419,14 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                 </React.Fragment>
             )}
         </div>
+    )
+}
+
+// Shown while connecting and joining the room
+function JoiningCard(props: {room: string}) {
+    return (
+        <Card className="p-6 shadow-none">
+            <p className="text-sm text-center">Joining {props.room} ...</p>
+        </Card>
     )
 }
