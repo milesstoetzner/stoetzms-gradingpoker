@@ -10,7 +10,8 @@
         "lint:check": "eslint .",
         "lint:fix": "eslint --fix .",
         "style:check": "prettier --check .",
-        "style:fix": "prettier --write ."
+        "style:fix": "prettier --write .",
+        "test": "vitest run"
     },
     "dependencies": {
         "@fractalsoftware/random-avatar-generator": "^1.0.11",
@@ -65,7 +66,8 @@
         "tsx": "^4.20.1",
         "typescript": "^5.1.6",
         "vite": "^6.0.0",
-        "vite-tsconfig-paths": "^4.2.1"
+        "vite-tsconfig-paths": "^4.2.1",
+        "vitest": "^3.2.7"
     },
     "engines": {
         "node": ">=20.0.0"

@@ -11,6 +11,7 @@ import InfoIcon from './info'
 import Vote from './vote'
 import Hover from "./hover";
 import {MonitorDown} from "lucide-react";
+import {Discussion} from '../../lib/discussion'
 import * as yaml from 'js-yaml'
 
 type Distribution = {
@@ -30,7 +31,7 @@ export function download(name: string, type: string, data: string) {
     document.body.removeChild(element)
 }
 
-export function ResultContent(props: { votes: Votes, users: User[], room: string }) {
+export function ResultContent(props: { votes: Votes, users: User[], room: string, discussion?: Discussion }) {
     const values = Object.values(props.votes)
     const strings = values.filter(it => it !== null && it !== undefined && it !== '').map(it => String(it))
     const numbers = strings.map(it => Number(it)).filter(it => !Number.isNaN(it))
@@ -69,7 +70,8 @@ export function ResultContent(props: { votes: Votes, users: User[], room: string
             distribution,
             average,
             median,
-            most
+            most,
+            discussion: props.discussion,
         }
 
         download(`gradingpoker.${date}.yaml`, 'data:text/yaml;charset=utf-8,', yaml.dump(data, {noRefs: true}))

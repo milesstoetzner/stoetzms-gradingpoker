@@ -40,6 +40,7 @@ import {Badge} from "../ui/badge";
 import Hover from "./hover";
 import Kick from "./kick";
 import {getSession} from '../../lib/session'
+import {findDiscussion} from '../../lib/discussion'
 
 export function RoomCard(props: { room: string; user: string; setProcess: (process: string) => void }) {
     const [searchParams, _] = useSearchParams()
@@ -146,6 +147,11 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
     const [voted, setVoted] = React.useState<Voted>({})
     const [vote, setVote] = React.useState<string>('')
     const [presentation, setPresentation] = React.useState<boolean>(false)
+
+    // Users with the most opposite votes, who should discuss (once votes are shown)
+    const discussion = hidden ? undefined : findDiscussion(votes)
+    const discusses = (user: string) =>
+        !!discussion && (discussion.low.users.includes(user) || discussion.high.users.includes(user))
 
     // Requests waiting for their ack, to prevent double submits
     const [pending, setPending] = React.useState<Set<string>>(new Set())
@@ -287,9 +293,18 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                             </TableCell>
                                             <TableCell className="break-words px-1 sm:px-2">{user.name} {user.name === props.user && !presentation &&
                                                 <Badge className="ml-[0.5rem]">me</Badge>}
+                                                {discusses(user.name) && (
+                                                    <Hover message="Most opposite vote, please discuss">
+                                                        <span className="ml-[0.5rem] inline-flex animate-in fade-in">
+                                                            <Badge variant="outline" className="border-amber-500 text-amber-700">discuss</Badge>
+                                                        </span>
+                                                    </Hover>
+                                                )}
                                                 {!user.online && (
                                                     <Hover message="Lost connection, keeps their vote for a while">
-                                                        <Badge variant="outline" className="ml-[0.5rem] text-muted-foreground">offline</Badge>
+                                                        <span className="ml-[0.5rem] inline-flex">
+                                                            <Badge variant="outline" className="text-muted-foreground">offline</Badge>
+                                                        </span>
                                                     </Hover>
                                                 )}
                                             </TableCell>
@@ -323,7 +338,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                             </div>
                         ) : (
                             <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 pb-4 duration-500 lg:pb-0">
-                                <ResultContent room={props.room} votes={votes} users={users}/>
+                                <ResultContent room={props.room} votes={votes} users={users} discussion={discussion}/>
                             </div>
                         )}
                     </div>
