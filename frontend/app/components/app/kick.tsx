@@ -41,7 +41,7 @@ export default function Kick(props: { users: User[], me: string, onClick: (value
         <DialogTrigger asChild>
             <Button type="submit" className="w-full" variant="secondary"
                     disabled={props.disabled || !others.length || props.pending}>
-                <UserX/> Remove User
+                <UserX/> <span>Remove<span className="hidden sm:inline"> User</span></span>
             </Button>
         </DialogTrigger>
 

@@ -91,7 +91,7 @@ export default function Index() {
     }
 
     return (
-        <div className="flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
+        <div className="flex min-h-svh flex-col items-center justify-center gap-6 p-3 sm:p-6 md:p-10">
             <Toaster position="top-right" expand={true} />
 
             {process === 'JOIN' ? (

@@ -239,15 +239,15 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
             {!joined && <JoiningCard room={props.room}/>}
 
             {joined && <Card className="overflow-hidden p-0 shadow-none animate-in fade-in duration-300">
-                <div className="grid p-0 md:grid-cols-2">
-                    <div className="flex flex-col gap-6">
+                <div className="grid grid-cols-1 p-0 lg:grid-cols-2 lg:grid-rows-[1fr_auto]">
+                    <div className="flex min-w-0 flex-col gap-2 lg:col-start-1 lg:row-start-1 lg:gap-6">
                         <CardHeader
-                            className="flex flex-row justify-between items-center"
+                            className="flex flex-row items-center justify-between gap-2 px-4 sm:px-6"
                             style={{marginTop: '-12px', marginBottom: '-10px'}}
                         >
-                            <CardTitle>{props.room}</CardTitle>
+                            <CardTitle className="min-w-0 truncate leading-normal" title={props.room}>{props.room}</CardTitle>
 
-                            <span className="flex items-center gap-2 ml-auto">
+                            <span className="ml-auto flex shrink-0 items-center gap-2">
                                 <Hover message="Presentation Mode">
                                 <Button variant={presentation ? "default" : "outline"} className="size-8" onClick={() => setPresentation(prev => !prev)}>
                                     <Presentation size="icon"/>
@@ -266,26 +266,26 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
 
                         </CardHeader>
 
-                        <CardContent className="min-h-[450px]">
+                        <CardContent className="px-4 sm:px-6 lg:min-h-[450px]">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead className="w-[0px]">User</TableHead>
-                                        <TableHead></TableHead>
-                                        <TableHead className="w-[125px]">Vote</TableHead>
+                                        <TableHead className="w-[0px] px-1 sm:px-2">User</TableHead>
+                                        <TableHead className="px-1 sm:px-2"></TableHead>
+                                        <TableHead className="w-[45%] px-1 sm:w-[125px] sm:px-2">Vote</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {users.map(user => (
                                         <TableRow key={user.name} className="animate-in fade-in duration-300">
-                                            <TableCell>
+                                            <TableCell className="px-1 sm:px-2">
                                                 <Avatar style={{borderWidth: '1px'}} className={user.online ? '' : 'opacity-40'}>
                                                     <AvatarImage
                                                         src={`data:image/svg+xml;base64,${btoa(user.avatar)}`}
                                                     ></AvatarImage>
                                                 </Avatar>
                                             </TableCell>
-                                            <TableCell>{user.name} {user.name === props.user && !presentation &&
+                                            <TableCell className="break-words px-1 sm:px-2">{user.name} {user.name === props.user && !presentation &&
                                                 <Badge className="ml-[0.5rem]">me</Badge>}
                                                 {!user.online && (
                                                     <Hover message="Lost connection, keeps their vote for a while">
@@ -293,7 +293,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                                     </Hover>
                                                 )}
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell className="px-1 sm:px-2">
                                                 {user.name === props.user && !presentation ? (
                                                     <Ballot value={vote} onChange={onVoteChange} disabled={!connected}/>
                                                 ) : voted[user.name] ? (
@@ -314,7 +314,22 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                             </Table>
                         </CardContent>
 
-                        <CardFooter className="flex-col gap-2">
+                    </div>
+
+                    <div className="flex min-w-0 flex-col gap-6 bg-muted lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:min-h-[200px]">
+                        {hidden ? (
+                            <div className="hidden h-full items-center justify-center lg:flex">
+                                <p className="text-sm text-center">Still voting ...</p>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 pb-4 duration-500 lg:pb-0">
+                                <ResultContent room={props.room} votes={votes} users={users}/>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="min-w-0 pb-4 lg:col-start-1 lg:row-start-2 lg:pb-0">
+                        <CardFooter className="grid grid-cols-2 gap-2 px-4 pt-4 sm:px-6 lg:pt-0">
                             <Button
                                 type="submit"
                                 className="w-full"
@@ -329,13 +344,14 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                 <EyeOff/> Hide Votes
                             </Button>
 
+                            <div className="col-span-2 grid grid-cols-3 gap-2">
                             <Kick users={users} me={props.user} onClick={onRemoveUser} disabled={!connected}
                                   pending={isPending('remove')}/>
 
                             <Dialog>
                                 <DialogTrigger asChild>
                                     <Button type="submit" className="w-full" variant="secondary" disabled={!connected}>
-                                        <Trash2/> Close Room
+                                        <Trash2/> <span>Close<span className="hidden sm:inline"> Room</span></span>
                                     </Button>
                                 </DialogTrigger>
 
@@ -360,21 +376,10 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
 
                             <Button type="submit" className="w-full" onClick={onLocalBack} variant="secondary"
                                     disabled={!connected}>
-                                <CircleArrowLeft/> Leave Room
+                                <CircleArrowLeft/> <span>Leave<span className="hidden sm:inline"> Room</span></span>
                             </Button>
+                            </div>
                         </CardFooter>
-                    </div>
-
-                    <div className="flex flex-col gap-6 bg-muted min-h-[200px]">
-                        {hidden ? (
-                            <div className="h-full flex items-center justify-center">
-                                <p className="text-sm text-center">Still voting ...</p>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                                <ResultContent room={props.room} votes={votes} users={users}/>
-                            </div>
-                        )}
                     </div>
                 </div>
             </Card>

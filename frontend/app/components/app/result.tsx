@@ -78,7 +78,7 @@ export function ResultContent(props: { votes: Votes, users: User[], room: string
     return (
         <React.Fragment>
             <CardHeader
-                className="flex flex-row justify-between items-center"
+                className="flex flex-row justify-between items-center px-4 sm:px-6"
                 style={{marginTop: '-12px', marginBottom: '-10px'}}
             >
                 <CardTitle>Result</CardTitle>
@@ -92,11 +92,11 @@ export function ResultContent(props: { votes: Votes, users: User[], room: string
                             </span>
 
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-4 sm:px-6">
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="w-[200px]">Metric</TableHead>
+                            <TableHead className="w-[40%] sm:w-[200px]">Metric</TableHead>
                             <TableHead>Value</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -131,7 +131,7 @@ export function ResultContent(props: { votes: Votes, users: User[], room: string
                                 <InfoIcon message="The value with the highest absolute votes"/>
                             </TableCell>
                             <TableCell>
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
                                     {most.map(it => (
                                         <Vote vote={it.vote} key={it.vote}/>
                                     ))}
@@ -146,8 +146,8 @@ export function ResultContent(props: { votes: Votes, users: User[], room: string
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="w-[200px]">Vote</TableHead>
-                            <TableHead className="w-[200px]">
+                            <TableHead className="w-[40%] sm:w-[200px]">Vote</TableHead>
+                            <TableHead className="sm:w-[200px]">
                                 <div className="flex items-center">
                                     Absolute
                                     <InfoIcon message="The absolute number of votes"/>

@@ -7,7 +7,7 @@ export default function Ballot(props: {value: string; onChange: (value: string) 
 
     return (
         <Select value={props.value} onValueChange={props.onChange} disabled={props.disabled}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Still voting ..." />
             </SelectTrigger>
             <SelectContent>
