@@ -69,28 +69,34 @@ redis:
     startupSleepTime: 20
     config:
       nodeTimeout: 5000
-  # A small volume per node, only for the node's cluster membership: without it, a restarted node comes back as a
-  # stranger and never rejoins the cluster. The rooms themselves are ephemeral and not written to disk (see below).
+  # A volume per node. It holds the node's cluster membership (without it, a restarted node comes back as a stranger
+  # and never rejoins the cluster) and the rooms, if they are persisted (see extraConfig).
   persistence:
     enabled: true
-    size: 1Gi
+    size: 2Gi
   # At most one Redis node may be down at once for planned disruptions, so a master and its replica never go together
   pdb:
     enabled: true
     minAvailable: ""
     maxUnavailable: 1
-  # Per node. noeviction: writes fail loudly rather than silently evicting rooms
+  # Per node.
+  # - noeviction: writes fail loudly rather than silently evicting rooms.
+  # - appendonly yes: the rooms are persisted. Every change is appended to a file on the volume, which is flushed to
+  #   disk once a second (appendfsync everysec). So rooms survive a restart of the whole cluster, and at most the last
+  #   second is lost. Set "appendonly no" to keep rooms in memory only.
   extraConfig: |
     maxmemory 200mb
     maxmemory-policy noeviction
     save ""
-    appendonly no
+    appendonly yes
+    appendfsync everysec
   resources:
     requests:
       cpu: 50m
       memory: 64Mi
+    # Rewriting the append-only file copies memory for a moment, hence the headroom above maxmemory
     limits:
-      memory: 256Mi
+      memory: 512Mi
 
 # Gateway API route (/socket.io to the backend, everything else to the frontend)
 route:

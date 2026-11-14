@@ -39,7 +39,7 @@ Planning poker for grading: examiners vote on a grade in secret, reveal all vote
 - **No missed updates:** changes are numbered. A client that notices a gap, or learns from the regular heartbeat that it is behind, loads the room again.
 - **Reconnect:** a user who loses the connection keeps their seat and vote.
 - **High availability:** every component runs replicated. If a backend fails, its users reconnect to another one and keep their seat. If a Redis node fails, its replica takes over.
-- **Rooms are not saved to disk:** Redis keeps them in memory only. If a Redis node fails, the changes made right before can be lost.
+- **Persistence:** rooms are written to disk about once a second, so they survive restarts. If a Redis node fails, the changes of the last second can be lost.
 - **Scaling:** more backends serve more users, more Redis nodes hold more rooms.
 
 
@@ -112,3 +112,26 @@ helm upgrade --install gradingpoker oci://ghcr.io/milesstoetzner/charts/gradingp
 ```
 
 Do not pass `--wait` on the first install: the Redis Cluster is formed in a hook after the install, and the backends only become ready once it exists.
+
+### Redis Cluster down after all Redis pods restarted
+
+If all Redis pods restart at once (e.g., the whole Kubernetes cluster was down), the Redis Cluster does not come back by itself: every vote fails with "Unexpected error on the server", although all pods are running.
+The Redis nodes remember each other by IP address, and after such a restart every node has a new one.
+Restarting single pods, as in a rolling update, is not affected.
+
+Introduce the nodes to each other at their new addresses. No data is lost, and the cluster is healthy again after about 20 seconds.
+
+```
+NAMESPACE=gradingpoker
+RELEASE=gradingpoker
+
+for ip in $(kubectl get pods -n $NAMESPACE -l app.kubernetes.io/name=redis,app.kubernetes.io/instance=$RELEASE -o jsonpath='{.items[*].status.podIP}'); do
+  kubectl exec -n $NAMESPACE $RELEASE-redis-0 -c redis -- sh -c "REDISCLI_AUTH=\$REDIS_PASSWORD redis-cli cluster meet $ip 6379"
+done
+```
+
+Check the result, which should be `cluster_state:ok`:
+
+```
+kubectl exec -n $NAMESPACE $RELEASE-redis-0 -c redis -- sh -c 'REDISCLI_AUTH=$REDIS_PASSWORD redis-cli cluster info' | head -1
+```
