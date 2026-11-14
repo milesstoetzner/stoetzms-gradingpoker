@@ -19,3 +19,8 @@ app.kubernetes.io/component: {{ .component }}
 app.kubernetes.io/managed-by: {{ .root.Release.Service }}
 helm.sh/chart: {{ printf "%s-%s" .root.Chart.Name .root.Chart.Version }}
 {{- end }}
+
+{{/* Tag of the images: image.tag, or the app version of a released chart */}}
+{{- define "gradingpoker.imageTag" -}}
+{{- .Values.image.tag | default .Chart.AppVersion | required "image.tag is required unless the chart comes from a release" -}}
+{{- end }}

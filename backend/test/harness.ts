@@ -41,7 +41,8 @@ export class TestServer {
 
     async start() {
         this.port = await freePort()
-        this.process = spawn('npx', ['tsx', 'src/index.ts'], {
+        // Started as a single node process (not via npx), so that signals reach the server itself on every platform
+        this.process = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
             cwd: new URL('..', import.meta.url).pathname,
             env: {
                 ...process.env,

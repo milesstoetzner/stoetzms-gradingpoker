@@ -74,7 +74,18 @@ cd frontend && pnpm test
 
 ## Release
 
-Build the release image.
+Pull requests and merges to `main` run the checks (`.github/workflows/ci.yaml`).
+
+Pushing a tag `v<version>` runs the checks and then publishes that version (`.github/workflows/release.yaml`):
+
+- the images `ghcr.io/milesstoetzner/stoetzms-gradingpoker:backend-<version>` and `:frontend-<version>`,
+- the Helm chart `oci://ghcr.io/milesstoetzner/charts/gradingpoker` in the same version, which uses those images by default.
+
+```
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+To build and push images of the current commit from your machine instead:
 
 ```
 ./build-and-push.sh
@@ -94,9 +105,15 @@ A link is only shown if its variable is set.
 
 ## Production
 
-Install or upgrade the Helm chart with the commit tag printed by `./build-and-push.sh`.
+Install or upgrade a released chart.
 Settings such as the host, the Gateway to attach to, replicas and the Impressum/privacy URLs are in `chart/values.yaml`.
 Redis runs with Redis Sentinel from the [CloudPirates Redis chart](https://github.com/CloudPirates-io/helm-charts/tree/main/charts/redis), a dependency of the chart.
+
+```
+helm upgrade --install gradingpoker oci://ghcr.io/milesstoetzner/charts/gradingpoker --version <version> --namespace gradingpoker --create-namespace
+```
+
+To install the chart from this repository instead, pass the tag of the images, e.g. the commit tag printed by `./build-and-push.sh`:
 
 ```
 helm dependency build ./chart

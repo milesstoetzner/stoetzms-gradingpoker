@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: {{ include "gradingpoker.name" $ctx }}
-          image: "{{ .Values.image.repository }}:backend-{{ .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}:backend-{{ include "gradingpoker.imageTag" . }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             - name: STOETZMS_GRADING_POKER_STORE

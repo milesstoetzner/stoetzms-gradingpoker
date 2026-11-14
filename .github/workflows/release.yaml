@@ -1,0 +1,64 @@
+name: Release
+
+# A tag v<version> (e.g. v1.2.0) runs the checks and then publishes the images and the Helm chart as <version>.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Checks
+    uses: ./.github/workflows/ci.yaml
+
+  images:
+    name: Publish ${{ matrix.component }} image
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        component: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v7
+      - id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # <repository>:<component>-<version>, the scheme of build-and-push.sh with the version instead of the commit
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.component }}/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository }}:${{ matrix.component }}-${{ steps.version.outputs.version }}
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,scope=${{ matrix.component }},mode=max
+
+  chart:
+    name: Publish chart
+    # After the images, so that a published chart never points to images that do not exist
+    needs: images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - uses: azure/setup-helm@v5
+      - run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
+      - run: helm dependency build chart
+      # The app version is the default image tag of the chart
+      - run: helm package chart --version "${{ steps.version.outputs.version }}" --app-version "${{ steps.version.outputs.version }}"
+      - run: helm push "gradingpoker-${{ steps.version.outputs.version }}.tgz" "oci://ghcr.io/${{ github.repository_owner }}/charts"
+      - run: echo "Published \`oci://ghcr.io/${{ github.repository_owner }}/charts/gradingpoker\` version \`${{ steps.version.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"

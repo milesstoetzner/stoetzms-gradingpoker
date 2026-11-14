@@ -1,7 +1,9 @@
-# Images are tagged <repository>:backend-<tag> and <repository>:frontend-<tag>, see build-and-push.sh
+# Images are tagged <repository>:backend-<tag> and <repository>:frontend-<tag>
 image:
   repository: ghcr.io/milesstoetzner/stoetzms-gradingpoker
-  tag: 2a12706
+  # Defaults to the version of a released chart. Required when installing the chart from this repository,
+  # e.g. the commit tag printed by build-and-push.sh
+  tag: ""
   pullPolicy: IfNotPresent
 
 backend:
