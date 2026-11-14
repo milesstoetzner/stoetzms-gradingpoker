@@ -33,7 +33,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      # <repository>:<component>-<version>, the scheme of build-and-push.sh with the version instead of the commit
+      # Both images share one repository: <repository>:<component>-<version>
       - uses: docker/build-push-action@v7
         with:
           context: .

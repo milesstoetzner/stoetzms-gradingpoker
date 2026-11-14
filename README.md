@@ -89,12 +89,6 @@ Pushing a tag `v<version>` runs the checks and then publishes that version (`.gi
 git tag v1.0.0 && git push origin v1.0.0
 ```
 
-To build and push images of the current commit from your machine instead:
-
-```
-./build-and-push.sh
-```
-
 
 ## Configuration
 
@@ -117,7 +111,7 @@ Redis runs as a Redis Cluster from the [CloudPirates Redis chart](https://github
 helm upgrade --install gradingpoker oci://ghcr.io/milesstoetzner/charts/gradingpoker --version <version> --namespace gradingpoker --create-namespace
 ```
 
-To install the chart from this repository instead, pass the tag of the images, e.g. the commit tag printed by `./build-and-push.sh`:
+To install the chart from this repository instead, pass the tag of the images, e.g. the version of a release:
 
 ```
 helm dependency build ./chart
