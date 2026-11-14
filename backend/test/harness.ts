@@ -12,10 +12,10 @@ export type Client = Socket<ServerToClientEvents, ClientToServerEvents> & {
     state?: RoomState
 }
 
-// Persistencies to test against: memory always, redis if TEST_REDIS_PORT is set
+// Stores to test against: memory always, redis if TEST_REDIS_PORT is set
 export const OFFLINE_GRACE = 2
 
-export const persistencies = ['memory', ...(process.env.TEST_REDIS_PORT ? ['redis'] : [])]
+export const stores = ['memory', ...(process.env.TEST_REDIS_PORT ? ['redis'] : [])]
 
 async function freePort(): Promise<number> {
     return new Promise((resolve, reject) => {
@@ -35,7 +35,7 @@ export class TestServer {
     port = 0
 
     constructor(
-        private readonly persistency: string,
+        private readonly store: string,
         private readonly env: Record<string, string> = {}
     ) {}
 
@@ -47,7 +47,7 @@ export class TestServer {
                 ...process.env,
                 NODE_ENV: 'test',
                 STOETZMS_GRADING_POKER_PORT: String(this.port),
-                STOETZMS_GRADING_POKER_PERSISTENCY: this.persistency,
+                STOETZMS_GRADING_POKER_STORE: this.store,
                 STOETZMS_GRADING_POKER_REDIS_HOST: process.env.TEST_REDIS_HOST ?? 'localhost',
                 STOETZMS_GRADING_POKER_REDIS_PORT: process.env.TEST_REDIS_PORT ?? '6379',
                 STOETZMS_GRADING_POKER_OFFLINE_GRACE: String(OFFLINE_GRACE),

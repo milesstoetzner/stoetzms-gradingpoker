@@ -1,7 +1,7 @@
 import {describe, expect, test} from 'vitest'
-import {MemoryStore} from '../src/persistency/memory'
-import {Rooms} from '../src/persistency/rooms'
-import {Room, RoomBusy} from '../src/persistency/types'
+import {MemoryStore} from '../src/store/memory'
+import {Rooms} from '../src/store/rooms'
+import {Room, RoomBusy} from '../src/store/types'
 
 // Memory store whose next writes fail, as if another server changed the room meanwhile
 class ConflictingStore extends MemoryStore {

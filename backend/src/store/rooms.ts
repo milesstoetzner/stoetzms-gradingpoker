@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {User} from '../../../spec/types'
-import {Connection, JoinResult, Member, Persistency, Room, RoomBusy, RoomData, RoomGone, Seed, Store} from './types'
+import {Connection, JoinResult, Member, Room, RoomBusy, RoomData, RoomGone, RoomOperations, Seed, Store} from './types'
 
 // Attempts of an operation if other servers keep changing the room meanwhile. Operations users trigger by clicking
 // (vote, show/hide, comment) give up soon with RoomBusy and the user clicks again. Joins (also automatic on reconnect),
@@ -15,7 +15,7 @@ const ATTEMPTS = {click: 3, automatic: 50}
  * limited number of times (see ATTEMPTS). Within one server, operations on the same room are queued, so that only
  * operations of different servers can conflict.
  */
-export class Rooms implements Persistency {
+export class Rooms implements RoomOperations {
     private readonly queues = new Map<string, Promise<unknown>>()
 
     constructor(

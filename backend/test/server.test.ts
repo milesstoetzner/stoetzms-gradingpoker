@@ -1,9 +1,9 @@
 import {afterAll, beforeAll, describe, expect, test, vi} from 'vitest'
 import {BALLOT_VALUES, ClientEvents, ServerEvents} from '../../spec/types'
-import {ack, Client, drop, fetchState, join, next, OFFLINE_GRACE, persistencies, sleep, TestServer, unique} from './harness'
+import {ack, Client, drop, fetchState, join, next, OFFLINE_GRACE, stores, sleep, TestServer, unique} from './harness'
 
-describe.each(persistencies)('server (%s)', persistency => {
-    const server = new TestServer(persistency)
+describe.each(stores)('server (%s)', store => {
+    const server = new TestServer(store)
 
     beforeAll(() => server.start())
     afterAll(() => server.stop())

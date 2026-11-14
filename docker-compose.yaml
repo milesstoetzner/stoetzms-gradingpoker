@@ -15,7 +15,7 @@ services:
       context: .
     restart: unless-stopped
     environment:
-      STOETZMS_GRADING_POKER_PERSISTENCY: redis
+      STOETZMS_GRADING_POKER_STORE: redis
     ports:
       - '4000:3000'
 

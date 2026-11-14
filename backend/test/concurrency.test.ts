@@ -1,13 +1,13 @@
 import {afterAll, beforeAll, describe, expect, test} from 'vitest'
 import {ClientEvents} from '../../spec/types'
-import {ack, Client, fetchState, join, persistencies, TestServer, unique} from './harness'
+import {ack, Client, fetchState, join, stores, TestServer, unique} from './harness'
 
 async function voteConcurrently(clients: Client[]) {
     await Promise.all(clients.map(it => ack(it, ClientEvents.SET_VOTE, {vote: '2.0'})))
 }
 
-describe.each(persistencies)('concurrency (%s)', persistency => {
-    const server = new TestServer(persistency)
+describe.each(stores)('concurrency (%s)', store => {
+    const server = new TestServer(store)
 
     beforeAll(() => server.start())
     afterAll(() => server.stop())
@@ -24,7 +24,7 @@ describe.each(persistencies)('concurrency (%s)', persistency => {
     })
 })
 
-// Multiple servers only make sense with a shared persistency
+// Multiple servers only make sense with a shared store
 describe.runIf(process.env.TEST_REDIS_PORT)('concurrency across servers (redis)', () => {
     const a = new TestServer('redis')
     const b = new TestServer('redis')

@@ -76,7 +76,7 @@ export class RoomBusy extends Error {
  * Users who lost their connection stay in the room as offline (with their vote) for a grace period. Mutating
  * operations remove offline users whose grace period ended.
  */
-export interface Persistency {
+export interface RoomOperations {
     init(): Promise<void>
 
     close(): Promise<void>

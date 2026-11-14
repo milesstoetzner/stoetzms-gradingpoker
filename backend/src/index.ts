@@ -14,12 +14,12 @@ import {generateSeed} from './seed'
 import * as config from './config'
 import {RateLimiter} from 'limiter'
 import * as parser from './parser'
-import {load} from './persistency'
-import {RoomBusy, RoomData, RoomGone} from './persistency/types'
+import {load} from './store'
+import {RoomBusy, RoomData, RoomGone} from './store/types'
 import {loadAdapter} from './adapter'
 
-const persistency = load()
-await persistency.init()
+const rooms = load()
+await rooms.init()
 
 const adapter = loadAdapter()
 
@@ -33,7 +33,7 @@ const http = createServer(async (req, res) => {
     try {
         if (req.url === '/healthz') return res.writeHead(200).end('ok')
         if (req.url === '/readyz') {
-            const ok = ready && (await persistency.health())
+            const ok = ready && (await rooms.health())
             return res.writeHead(ok ? 200 : 503).end(ok ? 'ok' : 'not ready')
         }
         res.writeHead(404).end()
@@ -153,7 +153,7 @@ io.on('connection', socket => {
     socket.on(ClientEvents.HEALTH, async (ack: Ack) => {
         try {
             parser.ack(ack)
-            ack({ok: await persistency.health()})
+            ack({ok: await rooms.health()})
         } catch (e) {
             handleUnexpected(e)
         }
@@ -175,7 +175,7 @@ io.on('connection', socket => {
         }
 
         // Update state
-        const result = await persistency.join(
+        const result = await rooms.join(
             data.room,
             user,
             {session: data.session, socket: socket.id},
@@ -218,7 +218,7 @@ io.on('connection', socket => {
         const data = parser.setVote(input)
 
         // Update state (fails if the room is closed or the user has been removed)
-        const room = await persistency.vote(me.room, me.user, data.vote)
+        const room = await rooms.vote(me.room, me.user, data.vote)
 
         // Emit state
         emitState(me, room)
@@ -228,7 +228,7 @@ io.on('connection', socket => {
         const data = parser.setComment(input)
 
         // Update state (comments are only editable while votes are hidden)
-        const room = await persistency.comment(me.room, me.user, data.comment)
+        const room = await rooms.comment(me.room, me.user, data.comment)
         if (room === 'shown') {
             emitError('Comments can only be changed while votes are hidden ...')
             return false
@@ -240,17 +240,17 @@ io.on('connection', socket => {
     })
 
     onJoined(ClientEvents.SHOW_VOTES, async (_, me) => {
-        const room = await persistency.setHidden(me.room, false)
+        const room = await rooms.setHidden(me.room, false)
         emitState(me, room)
     })
 
     onJoined(ClientEvents.HIDE_VOTES, async (_, me) => {
-        const room = await persistency.setHidden(me.room, true)
+        const room = await rooms.setHidden(me.room, true)
         emitState(me, room)
     })
 
     onJoined(ClientEvents.INIT_STATE, async (_, me) => {
-        const room = await persistency.getRoom(me.room)
+        const room = await rooms.getRoom(me.room)
         emitOwnState(me, room)
     })
 
@@ -265,13 +265,13 @@ io.on('connection', socket => {
         }
 
         // Update state (the target's own disconnect handler might never run, e.g., for broken users)
-        const room = await persistency.leave(me.room, data.user)
+        const room = await rooms.leave(me.room, data.user)
         emitState(me, room)
     })
 
     onJoined(ClientEvents.CLOSE_ROOM, async (_, me) => {
         // Update state
-        await persistency.deleteRoom(me.room)
+        await rooms.deleteRoom(me.room)
 
         // Emit close room to room (including this socket)
         console.log('server', me.room, 'emit', ServerEvents.CLOSE_ROOM)
@@ -304,7 +304,7 @@ io.on('connection', socket => {
             const mode = reason === 'client namespace disconnect' ? 'leave' : 'offline'
 
             // Update state (no-op if the user has been taken over by another socket meanwhile)
-            const room = await persistency.disconnect(me.room, me.user, socket.id, mode)
+            const room = await rooms.disconnect(me.room, me.user, socket.id, mode)
             if (!room) return
 
             // Emit state to room
@@ -347,7 +347,7 @@ io.on('connection', socket => {
     function emitOwnRoom() {
         if (!socket.data.ok) return
         const me = {room: socket.data.room, user: socket.data.user}
-        persistency
+        rooms
             .getRoom(me.room)
             .then(room => emitOwnState(me, room))
             .catch(handleUnexpected)
@@ -393,7 +393,7 @@ function schedulePrune(room: string) {
     setTimeout(
         async () => {
             try {
-                const data = await persistency.prune(room)
+                const data = await rooms.prune(room)
                 if (!data) return
                 console.log('server', room, 'emit', ServerEvents.ROOM_STATE, data.version)
                 io.to(room).emit(ServerEvents.ROOM_STATE, toState(data))
@@ -419,7 +419,7 @@ async function shutdown(signal: string) {
         await io.close()
         await Promise.allSettled(disconnecting)
         await adapter.close()
-        await persistency.close()
+        await rooms.close()
         process.exit(0)
     } catch (e) {
         console.log(e)

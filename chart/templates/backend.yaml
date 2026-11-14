@@ -23,7 +23,7 @@ spec:
           image: "{{ .Values.image.repository }}:backend-{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
-            - name: STOETZMS_GRADING_POKER_PERSISTENCY
+            - name: STOETZMS_GRADING_POKER_STORE
               value: redis
             # The Sentinels, which tell the backend the current Redis master
             - name: STOETZMS_GRADING_POKER_REDIS_HOST
