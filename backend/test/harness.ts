@@ -2,20 +2,25 @@ import {ChildProcess, spawn} from 'node:child_process'
 import {randomUUID} from 'node:crypto'
 import {createServer} from 'node:net'
 import {io, Socket} from 'socket.io-client'
-import {ClientToServerEvents, Notification, RoomState, ServerEvents, ServerToClientEvents} from '../../spec/types'
+import {ClientToServerEvents, Notification, RoomEvent, RoomState, ServerEvents, ServerToClientEvents} from '../../spec/types'
+import {RoomSync} from '../../spec/sync'
 
 export type Client = Socket<ServerToClientEvents, ClientToServerEvents> & {
     notifications: string[]
     // Per browser, reused when reconnecting
     session: string
-    // Latest room state, applied like the frontend does (newer versions only)
-    state?: RoomState
+    // Room state, kept up to date like the frontend does (full states and events)
+    readonly state?: RoomState
+    // Events received so far
+    events: RoomEvent[]
 }
 
-// Stores to test against: memory always, redis if TEST_REDIS_PORT is set
-export const OFFLINE_GRACE = 2
+// The tests need a Redis (TEST_REDIS_HOST and TEST_REDIS_PORT, by default localhost:6379)
+export const REDIS = {host: process.env.TEST_REDIS_HOST ?? 'localhost', port: process.env.TEST_REDIS_PORT ?? '6379'}
 
-export const stores = ['memory', ...(process.env.TEST_REDIS_PORT ? ['redis'] : [])]
+export const OFFLINE_GRACE = 2
+// Seconds between heartbeats, which also remove offline users after their grace period
+export const HEARTBEAT = 1
 
 async function freePort(): Promise<number> {
     return new Promise((resolve, reject) => {
@@ -34,10 +39,7 @@ export class TestServer {
     private clients: Client[] = []
     port = 0
 
-    constructor(
-        private readonly store: string,
-        private readonly env: Record<string, string> = {}
-    ) {}
+    constructor(private readonly env: Record<string, string> = {}) {}
 
     async start() {
         this.port = await freePort()
@@ -48,10 +50,10 @@ export class TestServer {
                 ...process.env,
                 NODE_ENV: 'test',
                 STOETZMS_GRADING_POKER_PORT: String(this.port),
-                STOETZMS_GRADING_POKER_STORE: this.store,
-                STOETZMS_GRADING_POKER_REDIS_HOST: process.env.TEST_REDIS_HOST ?? 'localhost',
-                STOETZMS_GRADING_POKER_REDIS_PORT: process.env.TEST_REDIS_PORT ?? '6379',
+                STOETZMS_GRADING_POKER_REDIS_HOST: REDIS.host,
+                STOETZMS_GRADING_POKER_REDIS_PORT: REDIS.port,
                 STOETZMS_GRADING_POKER_OFFLINE_GRACE: String(OFFLINE_GRACE),
+                STOETZMS_GRADING_POKER_HEARTBEAT: String(HEARTBEAT),
                 ...this.env,
             },
             stdio: process.env.TEST_SERVER_LOGS ? 'inherit' : 'ignore',
@@ -79,9 +81,16 @@ export class TestServer {
         }) as Client
         client.notifications = []
         client.session = session
+        client.events = []
+        const sync = new RoomSync()
+        Object.defineProperty(client, 'state', {get: () => sync.state})
+        const resync = () => client.emit('init-state' as any, () => {})
         client.on(ServerEvents.ROOM_STATE, (data: RoomState) => {
-            if (client.state && client.state.id === data.id && client.state.version > data.version) return
-            client.state = data
+            if (sync.snapshot(data)) resync()
+        })
+        client.on(ServerEvents.ROOM_EVENT, (event: RoomEvent) => {
+            client.events.push(event)
+            if (sync.event(event) === 'resync') resync()
         })
         client.on(ServerEvents.SHOW_NOTIFICATION, (data: Notification, ack) => {
             client.notifications.push(data.message)

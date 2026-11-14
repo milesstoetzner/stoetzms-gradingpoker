@@ -5,23 +5,20 @@ import {
     ClientEvents,
     ClientToServerEvents,
     HIDDEN,
+    RoomEvent,
     RoomState,
     ServerEvents,
     ServerToClientEvents,
 } from '../../spec/types'
-import {generateAvatar} from './utils'
 import {generateSeed} from './seed'
 import * as config from './config'
 import {RateLimiter} from 'limiter'
 import * as parser from './parser'
-import {load} from './store'
-import {RoomBusy, RoomData, RoomGone} from './store/types'
-import {loadAdapter} from './adapter'
+import {Rooms} from './store/rooms'
+import {RoomData, RoomGone, StoreEvent} from './store/types'
 
-const rooms = load()
+const rooms = new Rooms(config.roomTtl, config.offlineGrace)
 await rooms.init()
-
-const adapter = loadAdapter()
 
 let ready = true
 
@@ -50,9 +47,8 @@ type SocketData =
           user: string
           room: string
           session: string
-          avatar: string
       }
-    | {ok: false; id: string; room?: never; user?: never; session?: never; avatar?: never}
+    | {ok: false; id: string; room?: never; user?: never; session?: never}
 
 type Me = {room: string; user: string}
 
@@ -60,7 +56,6 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, {}, SocketData
     path: config.path,
     // WebSocket only: long-polling would require sticky sessions when running multiple servers
     transports: ['websocket'],
-    adapter: adapter.adapter,
     cors: config.origin ? {origin: config.origin} : undefined,
     // Disconnects are no longer destructive (users go offline and keep their vote), so be lenient with mobile networks
     pingInterval: 10000,
@@ -73,25 +68,130 @@ io.on('error', (err: Error) => {
 })
 
 /**
- * Converts the internal room into the state sent to clients: votes are only included if they are shown, except for
- * the vote of the recipient (if given).
+ * Converts the room into the state sent to the recipient: votes are only included if they are shown, except for the
+ * vote of the recipient.
  *
  * Comments are anonymous: they are only included once votes are shown, without their authors and sorted by content
  * (join or write order would reveal who wrote them). Whether someone commented is never sent.
  */
-function toState(data: RoomData, recipient?: string): RoomState {
-    const own = recipient === undefined ? undefined : data.votes[recipient]
+function toState(data: RoomData, recipient: string): RoomState {
+    const own = data.votes[recipient]
     return {
         id: data.id,
         version: data.version,
         hidden: data.hidden,
         users: data.users,
-        votes: !data.hidden ? data.votes : own === undefined ? {} : {[recipient!]: own},
+        votes: !data.hidden ? data.votes : own === undefined ? {} : {[recipient]: own},
         voted: Object.fromEntries(Object.keys(data.votes).map(user => [user, true])),
-        comments: data.hidden ? [] : Object.values(data.comments).sort((a, b) => a.localeCompare(b)),
-        ...(recipient === undefined ? {} : {comment: data.comments[recipient] ?? ''}),
+        comments: data.hidden ? [] : Object.values(data.comments).sort(),
+        comment: data.comments[recipient] ?? '',
     }
 }
+
+/**
+ * Rooms with sockets on this server. The server is subscribed to the events of exactly these rooms and forwards them
+ * to its sockets, so a change reaches the clients of all servers without the servers knowing each other.
+ */
+const local = new Map<string, {sockets: Set<string>; subscribed: Promise<void>}>()
+
+// Subscribes before the socket does anything in the room, so that no event is missed
+async function enter(room: string, socket: string) {
+    let entry = local.get(room)
+    if (!entry) {
+        entry = {sockets: new Set(), subscribed: rooms.subscribe(room)}
+        local.set(room, entry)
+    }
+    entry.sockets.add(socket)
+    await entry.subscribed
+}
+
+async function exit(room: string, socket: string) {
+    const entry = local.get(room)
+    if (!entry) return
+    entry.sockets.delete(socket)
+    if (entry.sockets.size) return
+
+    local.delete(room)
+    await rooms.unsubscribe(room)
+}
+
+function emitEvent(room: string, event: RoomEvent) {
+    console.log('server', room, 'emit', ServerEvents.ROOM_EVENT, event.type, event.version)
+    io.to(room).emit(ServerEvents.ROOM_EVENT, event)
+}
+
+function closeLocally(room: string) {
+    console.log('server', room, 'emit', ServerEvents.CLOSE_ROOM)
+    io.to(room).emit(ServerEvents.CLOSE_ROOM)
+    io.in(room).disconnectSockets(true)
+}
+
+// Disconnects the sockets of a user on this server (except the given one)
+function kick(room: string, user: string, message: string, except?: string) {
+    for (const id of io.sockets.adapter.rooms.get(room) ?? []) {
+        const socket = io.sockets.sockets.get(id)
+        if (!socket || socket.id === except || socket.data.user !== user) continue
+        socket.emit(ServerEvents.SHOW_NOTIFICATION, {message})
+        socket.disconnect(true)
+    }
+}
+
+// Redis encodes empty lists as objects
+function list(value: unknown): string[] {
+    return Array.isArray(value) ? value : []
+}
+
+rooms.onEvent((room: string, event: StoreEvent) => {
+    const {id} = event
+    switch (event.type) {
+        case 'closed':
+            return closeLocally(room)
+
+        case 'takeover':
+            // Previous sockets of the user (e.g., another tab, stale connection)
+            kick(room, event.user, 'You joined this room somewhere else ...', event.socket)
+            return emitEvent(room, {type: 'online', id, version: event.version, user: event.user})
+
+        case 'left':
+            if (event.by) kick(room, event.user, `You have been removed by ${event.by} ...`)
+            return emitEvent(room, {
+                type: 'left',
+                id,
+                version: event.version,
+                user: event.user,
+                ...(event.comments === undefined ? {} : {comments: list(event.comments)}),
+            })
+
+        case 'joined':
+            return emitEvent(room, {type: 'joined', id, version: event.version, user: event.user})
+
+        case 'shown':
+            return emitEvent(room, {type: 'shown', id, version: event.version, votes: event.votes, comments: list(event.comments)})
+
+        default:
+            return emitEvent(room, event)
+    }
+})
+
+/**
+ * Heartbeat: tells the clients of every room on this server the current version of their room, so that a client
+ * which missed the last change notices it. Also removes offline users whose grace period ended.
+ */
+async function heartbeat() {
+    await Promise.allSettled(
+        [...local.keys()].map(async room => {
+            const current = await rooms.sync(room)
+            if (!current) return closeLocally(room)
+            io.to(room).emit(ServerEvents.ROOM_EVENT, {type: 'version', ...current})
+        })
+    )
+}
+
+const beat = setInterval(() => heartbeat().catch(console.log), config.heartbeat * 1000)
+beat.unref()
+
+// Events might have been missed while the subscription was interrupted
+rooms.onRestored(() => heartbeat().catch(console.log))
 
 class TooManyRequests extends Error {
     constructor() {
@@ -165,118 +265,86 @@ io.on('connection', socket => {
             emitError('Already joined a room ...')
             return false
         }
-
-        // New user
-        const user = {
-            name: data.user,
-            avatar: generateAvatar(),
-        }
+        const me = {room: data.room, user: data.user}
 
         // Update state
-        const result = await rooms.join(
-            data.room,
-            user,
-            {session: data.session, socket: socket.id},
-            data.seed && config.seed ? generateSeed() : undefined
-        )
+        await enter(me.room, socket.id)
+        let result
+        try {
+            result = await rooms.join(
+                me.room,
+                me.user,
+                {session: data.session, socket: socket.id},
+                data.seed && config.seed ? generateSeed() : undefined
+            )
+        } catch (e) {
+            await exit(me.room, socket.id)
+            throw e
+        }
 
         // Check if another user with same name exists
-        if (!result.ok) {
+        if (result === 'collision') {
+            await exit(me.room, socket.id)
             emitError(`User ${data.user} already exists ...`, () => socket.disconnect(true))
             return false
         }
 
+        // The socket is gone meanwhile, its disconnect handler did not know about the room yet
+        if (!socket.connected) {
+            await rooms.disconnect(me.room, me.user, socket.id, 'offline')
+            await exit(me.room, socket.id)
+            return false
+        }
+
         // Init metadata
-        socket.data = {
-            ok: true,
-            id: socket.data.id,
-            user: data.user,
-            room: data.room,
-            session: data.session,
-            avatar: user.avatar,
-        }
+        socket.data = {ok: true, id: socket.data.id, user: me.user, room: me.room, session: data.session}
 
-        // Join broadcast
-        socket.join(data.room)
-
-        // Disconnect previous sockets of a taken over user (e.g., another tab, stale connection)
-        if (result.takeover) {
-            const sockets = await io.in(data.room).fetchSockets()
-            for (const other of sockets.filter(it => it.data.user === data.user && it.id !== socket.id)) {
-                other.emit(ServerEvents.SHOW_NOTIFICATION, {message: 'You joined this room somewhere else ...'})
-                other.disconnect(true)
-            }
-        }
+        // Receive the events of the room
+        socket.join(me.room)
 
         // Emit state
-        emitState({room: data.room, user: data.user}, result.room)
+        await emitOwnState(me)
     })
 
     onJoined(ClientEvents.SET_VOTE, async (input, me) => {
         const data = parser.setVote(input)
 
-        // Update state (fails if the room is closed or the user has been removed)
-        const room = await rooms.vote(me.room, me.user, data.vote)
-
-        // Emit state
-        emitState(me, room)
+        // Fails if the room is closed or the user has been removed
+        await rooms.vote(me.room, me.user, data.vote)
     })
 
     onJoined(ClientEvents.SET_COMMENT, async (input, me) => {
         const data = parser.setComment(input)
 
-        // Update state (comments are only editable while votes are hidden)
-        const room = await rooms.comment(me.room, me.user, data.comment)
-        if (room === 'shown') {
+        // Comments are only editable while votes are hidden. Nobody else is told: that would reveal who commented
+        if ((await rooms.comment(me.room, me.user, data.comment)) === 'shown') {
             emitError('Comments can only be changed while votes are hidden ...')
             return false
         }
-
-        // Emit state only to the author: while hidden, the public state did not change, and a broadcast would tell
-        // others that someone commented right now (versions only need to increase, others catch up with the next change)
-        emitOwnState(me, room)
     })
 
     onJoined(ClientEvents.SHOW_VOTES, async (_, me) => {
-        const room = await rooms.setHidden(me.room, false)
-        emitState(me, room)
+        await rooms.setHidden(me.room, false)
     })
 
     onJoined(ClientEvents.HIDE_VOTES, async (_, me) => {
-        const room = await rooms.setHidden(me.room, true)
-        emitState(me, room)
+        await rooms.setHidden(me.room, true)
     })
 
     onJoined(ClientEvents.INIT_STATE, async (_, me) => {
-        const room = await rooms.getRoom(me.room)
-        emitOwnState(me, room)
+        await emitOwnState(me)
     })
 
     onJoined(ClientEvents.REMOVE_USER, async (input, me) => {
         const data = parser.removeUser(input)
 
-        // Disconnect user
-        const sockets = await io.in(me.room).fetchSockets()
-        for (const target of sockets.filter(it => it.data.user === data.user)) {
-            target.emit(ServerEvents.SHOW_NOTIFICATION, {message: `You have been removed by ${me.user} ...`})
-            target.disconnect(true)
-        }
-
-        // Update state (the target's own disconnect handler might never run, e.g., for broken users)
-        const room = await rooms.leave(me.room, data.user)
-        emitState(me, room)
+        // The servers disconnect the sockets of the removed user
+        await rooms.leave(me.room, data.user, me.user)
     })
 
     onJoined(ClientEvents.CLOSE_ROOM, async (_, me) => {
-        // Update state
+        // The servers tell and disconnect everyone in the room (including this socket)
         await rooms.deleteRoom(me.room)
-
-        // Emit close room to room (including this socket)
-        console.log('server', me.room, 'emit', ServerEvents.CLOSE_ROOM)
-        io.to(me.room).emit(ServerEvents.CLOSE_ROOM)
-
-        // Disconnect all sockets by force
-        io.in(me.room).disconnectSockets(true)
 
         return false
     })
@@ -301,15 +369,10 @@ io.on('connection', socket => {
             // restart), the user stays offline with their vote and might reconnect within the grace period.
             const mode = reason === 'client namespace disconnect' ? 'leave' : 'offline'
 
-            // Update state (no-op if the user has been taken over by another socket meanwhile)
-            const room = await rooms.disconnect(me.room, me.user, socket.id, mode)
-            if (!room) return
-
-            // Emit state to room
-            emitRoomState(me.room, room)
-
-            // Remove the user once the grace period ended (if this server is gone by then, the next change does it)
-            if (mode === 'offline') schedulePrune(me.room)
+            // Update state (no-op if the user has been taken over by another socket meanwhile). Offline users are
+            // removed by the heartbeat once their grace period ended
+            await rooms.disconnect(me.room, me.user, socket.id, mode)
+            await exit(me.room, socket.id)
         } catch (e) {
             handleUnexpected(e)
         }
@@ -323,32 +386,11 @@ io.on('connection', socket => {
         if (!limiter.tryRemoveTokens(1)) throw new TooManyRequests()
     }
 
-    // Sends the state to this socket (including its own vote) and to all other sockets in the room
-    function emitState(me: Me, room: RoomData) {
-        emitOwnState(me, room)
-        console.log('server', me.room, 'emit', ServerEvents.ROOM_STATE, room.version)
-        socket.to(me.room).emit(ServerEvents.ROOM_STATE, toState(room))
-    }
-
-    function emitOwnState(me: Me, room: RoomData) {
-        const state = toState(room, me.user)
+    // Sends the full state to this socket (including its own vote and comment)
+    async function emitOwnState(me: Me) {
+        const state = toState(await rooms.getRoom(me.room), me.user)
         console.log('server', socket.data.id, 'emit', ServerEvents.ROOM_STATE, config.debug ? state : HIDDEN)
         socket.emit(ServerEvents.ROOM_STATE, state)
-    }
-
-    function emitRoomState(name: string, room: RoomData) {
-        console.log('server', name, 'emit', ServerEvents.ROOM_STATE, room.version)
-        io.to(name).emit(ServerEvents.ROOM_STATE, toState(room))
-    }
-
-    // Sends the current state to this socket, e.g., to reset its ballot after a vote which was not applied
-    function emitOwnRoom() {
-        if (!socket.data.ok) return
-        const me = {room: socket.data.room, user: socket.data.user}
-        rooms
-            .getRoom(me.room)
-            .then(room => emitOwnState(me, room))
-            .catch(handleUnexpected)
     }
 
     function emitRoomGone() {
@@ -367,11 +409,6 @@ io.on('connection', socket => {
     function handleUnexpected(error: unknown) {
         if (error instanceof TooManyRequests) return emitError(error.message)
         if (error instanceof RoomGone) return emitRoomGone()
-        if (error instanceof RoomBusy) {
-            emitError(error.message)
-            return emitOwnRoom()
-        }
-
         if (parser.isInvalidInput(error)) {
             const issue = error.issues[0]
             return emitError(`Invalid ${issue?.path.join('.') || 'input'}: ${issue?.message ?? 'unknown'}`)
@@ -387,22 +424,6 @@ io.on('connection', socket => {
     }
 })
 
-function schedulePrune(room: string) {
-    setTimeout(
-        async () => {
-            try {
-                const data = await rooms.prune(room)
-                if (!data) return
-                console.log('server', room, 'emit', ServerEvents.ROOM_STATE, data.version)
-                io.to(room).emit(ServerEvents.ROOM_STATE, toState(data))
-            } catch (e) {
-                console.log(e)
-            }
-        },
-        (config.offlineGrace + 1) * 1000
-    ).unref()
-}
-
 http.listen(config.port)
 
 process.on('unhandledRejection', err => {
@@ -414,9 +435,9 @@ async function shutdown(signal: string) {
         console.log('server', 'on', signal)
         ready = false
         // Disconnected clients go offline and reconnect to another server, where they take over their user
+        clearInterval(beat)
         await io.close()
         await Promise.allSettled(disconnecting)
-        await adapter.close()
         await rooms.close()
         process.exit(0)
     } catch (e) {

@@ -2,10 +2,9 @@ import {afterAll, beforeAll, describe, expect, test, vi} from 'vitest'
 import {ClientEvents, ServerEvents} from '../../spec/types'
 import {ack, drop, join, next, TestServer, unique} from './harness'
 
-// Multiple servers only make sense with a shared store
-describe.runIf(process.env.TEST_REDIS_PORT)('multiple servers (redis)', () => {
-    const a = new TestServer('redis')
-    const b = new TestServer('redis')
+describe('multiple servers', () => {
+    const a = new TestServer()
+    const b = new TestServer()
 
     beforeAll(() => Promise.all([a.start(), b.start()]))
     afterAll(() => Promise.all([a.stop(), b.stop()]))
@@ -91,9 +90,9 @@ describe.runIf(process.env.TEST_REDIS_PORT)('multiple servers (redis)', () => {
     })
 })
 
-describe.runIf(process.env.TEST_REDIS_PORT)('server shutdown (redis)', () => {
-    const a = new TestServer('redis')
-    const b = new TestServer('redis')
+describe('server shutdown', () => {
+    const a = new TestServer()
+    const b = new TestServer()
 
     beforeAll(() => Promise.all([a.start(), b.start()]))
     afterAll(() => b.stop())

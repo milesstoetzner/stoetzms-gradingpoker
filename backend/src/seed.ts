@@ -1,41 +1,16 @@
-import {generateAvatar} from './utils'
 import randomName from '@scaleway/random-name'
+import {Seed} from './store/types'
 
-export function generateSeed() {
-    const hidden = true
+export function generateSeed(): Seed {
+    const users = [randomName(), randomName(), randomName(), randomName()]
 
-    const users = [
-        {
-            name: randomName(),
-            avatar: generateAvatar(),
-            online: true,
+    return {
+        hidden: true,
+        users,
+        votes: {
+            [users[0]]: '1.0',
+            [users[1]]: '2.0',
+            [users[3]]: 'Withhold',
         },
-        {
-            name: randomName(),
-            avatar: generateAvatar(),
-            online: true,
-        },
-        {
-            name: randomName(),
-            avatar: generateAvatar(),
-            online: true,
-        },
-        {
-            name: randomName(),
-            avatar: generateAvatar(),
-            online: true,
-        },
-    ]
-
-    const votes = {
-        [users[0].name]: '1.0',
-        [users[1].name]: '2.0',
-        [users[3].name]: 'Withhold',
     }
-
-    const voted = Object.fromEntries(
-        Object.keys(votes).map(name => [name, true])
-    )
-
-    return {hidden, users, votes, voted}
 }

@@ -1,9 +1,9 @@
 import {afterAll, beforeAll, describe, expect, test, vi} from 'vitest'
 import {BALLOT_VALUES, ClientEvents, ServerEvents} from '../../spec/types'
-import {ack, Client, drop, fetchState, join, next, OFFLINE_GRACE, stores, sleep, TestServer, unique} from './harness'
+import {ack, Client, drop, fetchState, join, next, OFFLINE_GRACE, sleep, TestServer, unique} from './harness'
 
-describe.each(stores)('server (%s)', store => {
-    const server = new TestServer(store)
+describe('server', () => {
+    const server = new TestServer()
 
     beforeAll(() => server.start())
     afterAll(() => server.stop())
@@ -20,11 +20,22 @@ describe.each(stores)('server (%s)', store => {
         expect(await ack(alice, ClientEvents.SET_VOTE, {vote: '1.3'})).toEqual({ok: true})
         await vi.waitFor(() => expect(bob.state?.voted).toEqual({alice: true}))
         expect(bob.state?.votes).toEqual({})
-        expect(alice.state?.votes).toEqual({alice: '1.3'})
+        // Own vote is part of the own full state only
+        expect((await fetchState(alice)).votes).toEqual({alice: '1.3'})
 
         expect(await ack(alice, ClientEvents.SHOW_VOTES)).toEqual({ok: true})
         await vi.waitFor(() => expect(bob.state?.votes).toEqual({alice: '1.3'}))
         expect(bob.state?.hidden).toBe(false)
+    })
+
+    test('the heartbeat announces the current version', async () => {
+        const room = unique('room')
+        const alice = server.client()
+        await join(alice, room, 'alice')
+        await ack(alice, ClientEvents.SET_VOTE, {vote: '1.3'})
+
+        await vi.waitFor(() => expect(alice.events.at(-1)).toMatchObject({type: 'version', version: 2}), {timeout: 3000})
+        expect(alice.events.at(-1)?.id).toBe(alice.state?.id)
     })
 
     test('voting hides votes again', async () => {
@@ -212,7 +223,6 @@ describe.each(stores)('server (%s)', store => {
             await ack(alice, ClientEvents.SET_VOTE, {vote: '1.0'})
             await ack(bob, ClientEvents.SET_VOTE, {vote: '2.0'})
             await ack(bob, ClientEvents.SHOW_VOTES)
-            const avatar = bob.state?.users.find(it => it.name === 'alice')?.avatar
 
             await drop(alice)
             await vi.waitFor(() => expect(bob.state?.users.find(it => it.name === 'alice')?.online).toBe(false))
@@ -223,8 +233,7 @@ describe.each(stores)('server (%s)', store => {
             expect(await join(again, room, 'alice')).toEqual({ok: true})
             await vi.waitFor(() => expect(bob.state?.users.find(it => it.name === 'alice')?.online).toBe(true))
 
-            // Same seat: vote and avatar kept, and votes stay shown
-            expect(bob.state?.users.find(it => it.name === 'alice')?.avatar).toBe(avatar)
+            // Same seat: vote kept, and votes stay shown
             expect(bob.state?.hidden).toBe(false)
             expect(again.state?.votes).toEqual({alice: '1.0', bob: '2.0'})
         })
@@ -301,13 +310,16 @@ describe.each(stores)('server (%s)', store => {
 
             const received: unknown[] = []
             carol.on(ServerEvents.ROOM_STATE as any, (data: unknown) => received.push(data))
+            // Heartbeats aside, no event either
+            carol.on(ServerEvents.ROOM_EVENT as any, (data: {type: string}) => data.type !== 'version' && received.push(data))
 
             expect(await ack(alice, ClientEvents.SET_COMMENT, {comment: '  very solid evaluation  '})).toEqual({ok: true})
             expect(await ack(bob, ClientEvents.SET_COMMENT, {comment: 'Related work is thin'})).toEqual({ok: true})
 
-            // Own comment only for the author, nothing for others (not even a broadcast)
-            expect(alice.state?.comment).toBe('very solid evaluation')
-            expect(alice.state?.comments).toEqual([])
+            // Own comment only for the author, nothing for others (not even an event)
+            const own = await fetchState(alice)
+            expect(own.comment).toBe('very solid evaluation')
+            expect(own.comments).toEqual([])
             await sleep(100)
             expect(received).toEqual([])
             expect((await fetchState(carol)).comments).toEqual([])

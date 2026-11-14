@@ -33,9 +33,11 @@ browser ── WebSocket ──> Gateway ──> backend (2 replicas) ──> Re
 ```
 
 - **Frontend:** a single-page app (Remix, React) served by nginx. It only talks to the backend over one WebSocket (socket.io, no long-polling), so any backend replica can serve any client without sticky sessions.
-- **Backend:** stateless Node.js servers (socket.io). All state is in the store: `memory` for development, `redis` for production. Room broadcasts go between the replicas through Redis sharded pub/sub: every room has its own channel and a backend only subscribes to the rooms it has users in, so a broadcast only reaches the backends that serve the room.
-- **Rooms:** one record per room (users, votes, comments, a version). Every change is sent to the room as the full state with its version, and clients ignore states older than the one they have.
-- **Consistency:** every operation on a room is atomic without locks. The backend reads the room, changes a copy and writes it only if the room is still at the version it read (one compare-and-set script in Redis); otherwise it starts over. Clicks give up after 3 attempts ("Room is busy"), joins and housekeeping retry longer.
+- **Backend:** stateless Node.js servers (socket.io). All state is in Redis, so any backend can serve any room.
+- **Rooms:** a room is a few Redis hashes (users, votes, comments, and a version that increases with every change). Every operation is one small script that Redis runs atomically: a vote writes that user's vote and nothing else. So operations never wait for each other or conflict, and cost the same in small and large rooms.
+- **Updates:** a change is published in the same step as it is written, as an event with its version, on the room's own channel (Redis sharded pub/sub). A backend subscribes to the rooms it has users in and forwards the events to them. A client gets the full state when it joins and applies events afterwards.
+- **No missed updates:** a client only applies the event that is exactly one version ahead; if it sees a gap, it asks for the full state. Every 30 seconds a backend also tells its clients the current version of their room (heartbeat), which catches a missed last update. Reconnecting always loads the full state.
+- **Avatars:** drawn by the client from the user name, so the same name has the same avatar everywhere and the server stores none.
 - **High availability:** Kubernetes restarts and replaces backends through `/healthz` and `/readyz`; a backend that shuts down marks its users as offline, and they reconnect to another replica and take over their seat by their browser session. Redis is a Redis Cluster: rooms are spread over the masters, and when a master fails its replica takes over within seconds, during which only the rooms on that master reject changes. Redis replicates asynchronously and keeps the rooms in memory only (the volume of a node only holds its cluster membership), so a failover can lose the last writes, and losing a master together with its replica loses their rooms.
 - **Scaling:** add backend replicas for more connections and Redis masters for more rooms (`backend.replicas` and `redis.replicaCount` in the chart).
 - **Limits:** each connection may send 30 requests per 30 seconds; names are at most 64 and comments at most 500 characters.
@@ -49,9 +51,10 @@ Start the development environment and access the app at http://localhost.
 docker compose -f docker-compose.dev.yaml up -d
 ```
 
-Alternatively, run backend and frontend directly (the vite dev server proxies `/socket.io` to `http://localhost:3000`).
+Alternatively, run backend and frontend directly (the vite dev server proxies `/socket.io` to `http://localhost:3000`). The backend needs a Redis on `localhost:6379`.
 
 ```
+docker run -d --rm --name gradingpoker-redis -p 6379:6379 redis:8.0
 cd backend && pnpm dev
 cd frontend && pnpm dev
 ```
@@ -59,7 +62,7 @@ cd frontend && pnpm dev
 
 ## Tests
 
-Backend integration tests run against the in-memory store and, if `TEST_REDIS_PORT` is set, also against Redis.
+Backend tests need a Redis (`TEST_REDIS_HOST` and `TEST_REDIS_PORT`, by default `localhost:6379`).
 
 ```
 docker run -d --rm --name gradingpoker-test-redis -p 16379:6379 redis:8.0

@@ -13,6 +13,7 @@ import {io, Socket} from 'socket.io-client'
 import {
     ClientEvents,
     ClientToServerEvents,
+    RoomEvent,
     RoomState,
     ServerEvents,
     ServerToClientEvents,
@@ -41,6 +42,8 @@ import Hover from "./hover";
 import Kick from "./kick";
 import Comment from './comment'
 import {getSession} from '../../lib/session'
+import {avatarOf} from '../../lib/avatar'
+import {RoomSync} from '../../../../spec/sync'
 import {findDiscussion} from '../../lib/discussion'
 
 export function RoomCard(props: { room: string; user: string; setProcess: (process: string) => void }) {
@@ -61,8 +64,8 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
     const [joined, setJoined] = useState(false)
     const [error, setError] = useDebounce<string | undefined>(undefined, 500)
 
-    // Latest applied room state, older states (e.g., delayed broadcasts) are ignored
-    const latest = React.useRef<{id: string; version: number}>()
+    // State of the room: the server sends the full state once and changes as events afterwards
+    const sync = React.useRef(new RoomSync())
 
     React.useEffect(() => {
         let id: string
@@ -106,29 +109,46 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
             setError(lost ? 'Connection lost, reconnecting ...' : 'Cannot reach the server, retrying ...')
         })
 
+        // Asks for the full state, e.g., after a missed event
+        const resync = () => {
+            console.log('socket', id, 'emit', ClientEvents.INIT_STATE)
+            socket.emit(ClientEvents.INIT_STATE, () => {})
+        }
+
+        const render = (state: RoomState) => {
+            setUsers(state.users)
+            setVotes(state.votes)
+            setVoted(state.voted)
+            setHidden(state.hidden)
+            setComments(state.comments)
+
+            // Own vote is only known from full states or if votes are shown, otherwise we keep what we voted
+            const own = state.votes[props.user]
+            if (own !== undefined) setVote(own)
+            else if (!state.voted[props.user]) setVote('')
+        }
+
         socket.on(ServerEvents.ROOM_STATE, (data: RoomState) => {
             console.log('socket', id, 'on', ServerEvents.ROOM_STATE, debug ? data : data.version)
 
-            const current = latest.current
-            if (current && current.id === data.id && current.version > data.version) return
-            latest.current = {id: data.id, version: data.version}
+            const outdated = sync.current.snapshot(data)
+            if (sync.current.state) render(sync.current.state)
 
-            setUsers(data.users)
-            setVotes(data.votes)
-            setVoted(data.voted)
-            setHidden(data.hidden)
-
-            // Own vote is only included in states sent directly to us (or if votes are shown)
-            const own = data.votes[props.user]
-            if (own !== undefined) setVote(own)
-            else if (!data.voted[props.user]) setVote('')
-
-            // Anonymous comments, own comment only in states sent directly to us (keep unsaved edits)
-            setComments(data.comments)
+            // Own comment (keep unsaved edits)
             if (data.comment !== undefined) {
                 saved.current = data.comment
                 if (!dirty.current) setComment(data.comment)
             }
+
+            if (outdated) resync()
+        })
+
+        socket.on(ServerEvents.ROOM_EVENT, (event: RoomEvent) => {
+            console.log('socket', id, 'on', ServerEvents.ROOM_EVENT, event.type, event.version)
+
+            const result = sync.current.event(event)
+            if (result === 'applied' && sync.current.state) render(sync.current.state)
+            if (result === 'resync') resync()
         })
 
         socket.on(ServerEvents.CLOSE_ROOM, () => {
@@ -192,7 +212,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
     }
 
     function onVoteChange(vote: string) {
-        // Voting hides votes on the server, the room state follows
+        // Voting hides votes on the server, the event follows
         setVote(vote)
 
         request('vote', ClientEvents.SET_VOTE, {vote})
@@ -200,6 +220,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
 
     const saveComment = useDebouncedCallback((value: string) => {
         request('comment', ClientEvents.SET_COMMENT, {comment: value}, () => {
+            saved.current = value
             // Further edits meanwhile are saved by the next debounced call
             if (value === commentRef.current) dirty.current = false
         })
@@ -318,7 +339,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                             <TableCell className="px-1 sm:px-2">
                                                 <Avatar style={{borderWidth: '1px'}} className={user.online ? '' : 'opacity-40'}>
                                                     <AvatarImage
-                                                        src={`data:image/svg+xml;base64,${btoa(user.avatar)}`}
+                                                        src={`data:image/svg+xml;base64,${btoa(avatarOf(user.name))}`}
                                                     ></AvatarImage>
                                                 </Avatar>
                                             </TableCell>

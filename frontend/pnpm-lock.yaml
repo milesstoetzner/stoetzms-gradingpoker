@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@fractalsoftware/random-avatar-generator':
-        specifier: ^1.0.11
-        version: 1.0.11
       '@paralleldrive/cuid2':
         specifier: ^2.2.2
         version: 2.2.2
@@ -775,9 +772,6 @@ packages:
 
   '@floating-ui/utils@0.2.9':
     resolution: {integrity: sha512-MDWhGtE+eHw5JW7lq4qhc5yRLS11ERl1c7Z6Xd0a58DozHES6EnNNwUWbMiG4J9Cgj053Bhk8zvlhFYKVhULwg==}
-
-  '@fractalsoftware/random-avatar-generator@1.0.11':
-    resolution: {integrity: sha512-LV+ndmma0uRkxBIukxgZU8XwH0QoTY/mhLNgLRwoUyuMmyosxdWzVW85Y4DtrCRrn3lkuLB+IQckdVfNdUxhNA==}
 
   '@humanwhocodes/config-array@0.13.0':
     resolution: {integrity: sha512-DZLEEqFWQFiyK6h5YIeynKx7JlvCYWL0cImfSRXZ9l4Sg2efkFGTuFf6vzXjK1cq6IYkU+Eg/JizXw+TD2vRNw==}
@@ -5162,8 +5156,6 @@ snapshots:
       react-dom: 18.3.1(react@18.3.1)
 
   '@floating-ui/utils@0.2.9': {}
-
-  '@fractalsoftware/random-avatar-generator@1.0.11': {}
 
   '@humanwhocodes/config-array@0.13.0':
     dependencies:

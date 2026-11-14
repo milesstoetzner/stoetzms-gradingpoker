@@ -1,217 +1,178 @@
 import {randomUUID} from 'node:crypto'
-import {User} from '../../../spec/types'
-import {Connection, JoinResult, Member, Room, RoomBusy, RoomData, RoomGone, RoomOperations, Seed, Store} from './types'
+import {connect, Connection as Redis} from '../redis'
+import * as scripts from './scripts'
+import {Connection, JoinResult, RoomData, RoomGone, Seed, StoreEvent} from './types'
 
-// Attempts of an operation if other servers keep changing the room meanwhile. Operations users trigger by clicking
-// (vote, show/hide, comment) give up soon with RoomBusy and the user clicks again. Joins (also automatic on reconnect),
-// leaving and housekeeping (e.g., disconnects) keep starting over, since nobody clicks again for them.
-const ATTEMPTS = {click: 3, automatic: 50}
+const COMMANDS = {
+    roomJoin: scripts.JOIN,
+    roomLeave: scripts.LEAVE,
+    roomDisconnect: scripts.DISCONNECT,
+    roomVote: scripts.VOTE,
+    roomComment: scripts.COMMENT,
+    roomSetHidden: scripts.SET_HIDDEN,
+    roomClose: scripts.CLOSE,
+    roomSync: scripts.SYNC,
+    roomSnapshot: scripts.SNAPSHOT,
+}
 
 /**
- * The rules of a room, independent of where rooms are stored.
+ * Operations on rooms, stored in Redis. Every operation is one script (see scripts.ts), i.e., atomic also across
+ * multiple servers, never waits for another operation and costs the same for small and large rooms.
  *
- * Every operation reads the room, applies its changes to a copy and writes the copy only if nobody changed the room
- * meanwhile (optimistic concurrency, see Store.write). Otherwise, it starts over with the latest room, but only a
- * limited number of times (see ATTEMPTS). Within one server, operations on the same room are queued, so that only
- * operations of different servers can conflict.
+ * Operations on rooms which do not exist (anymore) throw RoomGone instead of recreating them (housekeeping
+ * operations like disconnect and sync return undefined instead).
+ *
+ * Changes are published as events (see StoreEvent). A server subscribes to the rooms it has sockets in.
  */
-export class Rooms implements RoomOperations {
-    private readonly queues = new Map<string, Promise<unknown>>()
+export class Rooms {
+    private redis!: Redis
+    private subscriber!: Redis
+    private listener?: (room: string, event: StoreEvent) => void
+    private restored?: () => void
 
     constructor(
-        private readonly store: Store,
+        // Seconds after the last change until a room is deleted
+        private readonly ttl: number,
         // Seconds an offline user keeps their seat
         private readonly grace: number
     ) {}
 
     async init() {
-        await this.store.init()
+        this.redis = connect()
+        for (const [name, lua] of Object.entries(COMMANDS)) this.redis.defineCommand(name, {numberOfKeys: 5, lua})
+
+        // A subscribing connection cannot send other commands
+        this.subscriber = connect()
+        this.subscriber.on('smessage', (channel: string, message: string) => {
+            try {
+                this.listener?.(fromChannel(channel), JSON.parse(message))
+            } catch (e) {
+                console.log(e)
+            }
+        })
+
+        // Events published while the subscriber was disconnected are lost
+        let ready = false
+        this.subscriber.on('ready', () => {
+            if (ready) this.restored?.()
+            ready = true
+        })
     }
 
     async close() {
-        await this.store.close()
+        await Promise.allSettled([this.redis?.quit(), this.subscriber?.quit()])
     }
 
     async health() {
-        return this.store.health()
-    }
-
-    async join(name: string, user: Omit<User, 'online'>, connection: Connection, seed?: Seed): Promise<JoinResult> {
-        const {room, result} = await this.update(
-            name,
-            room => {
-                // Take over the existing user (e.g., reconnect) which keeps their vote
-                const existing = find(room, user.name)
-                if (existing) {
-                    if (existing.session !== connection.session) return 'collision'
-
-                    existing.socket = connection.socket
-                    delete existing.offline
-                    return 'takeover'
-                }
-
-                room.users.push({name: user.name, avatar: user.avatar, ...connection})
-                room.hidden = true
-            },
-            {create: () => create(seed), attempts: ATTEMPTS.automatic}
-        )
-        if (result === 'collision') return {ok: false, reason: 'collision'}
-        return {ok: true, room, takeover: result === 'takeover'}
-    }
-
-    async leave(name: string, user: string) {
-        const {room} = await this.update(name, room => remove(room, user), {attempts: ATTEMPTS.automatic})
-        return room
-    }
-
-    async disconnect(name: string, user: string, socket: string, mode: 'leave' | 'offline') {
         try {
-            const {room} = await this.update(
-                name,
-                room => {
-                    const existing = find(room, user)
-                    if (existing?.socket !== socket) return
-
-                    if (mode === 'leave') remove(room, user)
-                    else existing.offline = now()
-                },
-                {attempts: ATTEMPTS.automatic}
-            )
-            return room
+            await this.redis.ping()
+            return true
         } catch (e) {
-            if (e instanceof RoomGone) return
-            throw e
+            console.log(e)
+            return false
         }
     }
 
-    async prune(name: string) {
-        try {
-            // Every update removes expired offline users
-            const {room, changed} = await this.update(name, () => {}, {attempts: ATTEMPTS.automatic})
-            if (changed) return room
-        } catch (e) {
-            if (e instanceof RoomGone) return
-            throw e
+    // Called for every event of a subscribed room
+    onEvent(listener: (room: string, event: StoreEvent) => void) {
+        this.listener = listener
+    }
+
+    // Called when events of subscribed rooms might have been missed
+    onRestored(listener: () => void) {
+        this.restored = listener
+    }
+
+    async subscribe(room: string) {
+        await this.subscriber.ssubscribe(keys(room)[4])
+    }
+
+    async unsubscribe(room: string) {
+        await this.subscriber.sunsubscribe(keys(room)[4])
+    }
+
+    // Creates the room if required, adds the user and hides votes, or takes over the user if the session matches
+    async join(room: string, user: string, connection: Connection, seed?: Seed): Promise<JoinResult> {
+        return this.run('roomJoin', room, user, connection.session, connection.socket, randomUUID(), seed ? JSON.stringify(seed) : '')
+    }
+
+    // Removes the user, their vote and their comment (by: who removed them, if not themselves)
+    async leave(room: string, user: string, by?: string) {
+        this.assert(await this.run('roomLeave', room, user, by ?? ''))
+    }
+
+    // Removes the user (leave) or marks them as offline, but only if the socket is still the user's current one
+    async disconnect(room: string, user: string, socket: string, mode: 'leave' | 'offline') {
+        await this.run('roomDisconnect', room, user, socket, mode, now())
+    }
+
+    // Sets the vote of the user (who must be in the room) and hides votes
+    async vote(room: string, user: string, vote: string) {
+        this.assert(await this.run('roomVote', room, user, vote))
+    }
+
+    // Sets (or removes, if empty) the comment of the user (who must be in the room); only while votes are hidden
+    async comment(room: string, user: string, comment: string): Promise<'ok' | 'shown'> {
+        return this.assert(await this.run('roomComment', room, user, comment))
+    }
+
+    async setHidden(room: string, hidden: boolean) {
+        this.assert(await this.run('roomSetHidden', room, hidden ? '1' : '0'))
+    }
+
+    async deleteRoom(room: string) {
+        await this.run('roomClose', room)
+    }
+
+    // Removes offline users whose grace period ended and returns the current version, or undefined if the room is gone
+    async sync(room: string): Promise<{id: string; version: number} | undefined> {
+        const result = await this.run('roomSync', room, now(), this.grace)
+        if (!result) return
+        return {id: result[0], version: Number(result[1])}
+    }
+
+    async getRoom(room: string): Promise<RoomData> {
+        const result = await this.run('roomSnapshot', room)
+        if (!result) throw new RoomGone()
+
+        const [meta, users, votes, comments] = (result as string[][]).map(toObject)
+        return {
+            id: meta.id,
+            version: Number(meta.version),
+            hidden: meta.hidden === '1',
+            users: Object.entries(users)
+                .map(([name, raw]) => ({name, ...(JSON.parse(raw) as {seq: number; offline?: number})}))
+                .sort((a, b) => a.seq - b.seq)
+                .map(it => ({name: it.name, online: it.offline === undefined})),
+            votes,
+            comments,
         }
     }
 
-    async vote(name: string, user: string, vote: string) {
-        const {room} = await this.update(name, room => {
-            if (!find(room, user)) throw new RoomGone()
-
-            room.votes[user] = vote
-            room.hidden = true
-        })
-        return room
+    private run(command: keyof typeof COMMANDS, room: string, ...args: (string | number)[]): Promise<any> {
+        return (this.redis as any)[command](...keys(room), this.ttl, ...args)
     }
 
-    async comment(name: string, user: string, comment: string) {
-        const {room, result} = await this.update(name, room => {
-            if (!find(room, user)) throw new RoomGone()
-            if (!room.hidden) return 'shown' as const
-
-            if (comment) room.comments[user] = comment
-            else delete room.comments[user]
-        })
-        return result ?? room
-    }
-
-    async setHidden(name: string, hidden: boolean) {
-        const {room} = await this.update(name, room => {
-            room.hidden = hidden
-        })
-        return room
-    }
-
-    async getRoom(name: string) {
-        const room = await this.store.get(name)
-        if (!room) throw new RoomGone()
-        return toData(room)
-    }
-
-    async deleteRoom(name: string) {
-        await this.store.delete(name)
-    }
-
-    /**
-     * Removes expired offline users and applies the change to a copy of the latest room, then writes it, if something
-     * changed. Creates the room if it does not exist and create is given, otherwise throws RoomGone.
-     *
-     * Starts over with the latest room if another server changed the room meanwhile, up to the given attempts, then
-     * throws RoomBusy. Hence, the change might be applied several times and must not have side effects.
-     */
-    private update<T>(
-        name: string,
-        change: (room: Room) => T,
-        {create, attempts = ATTEMPTS.click}: {create?: () => Room; attempts?: number} = {}
-    ) {
-        return this.queued(name, async () => {
-            for (let attempt = 0; attempt < attempts; attempt++) {
-                const current = await this.store.get(name)
-                const room = structuredClone(current) ?? create?.()
-                if (!room) throw new RoomGone()
-
-                this.removeExpired(room)
-                const result = change(room)
-                if (current && JSON.stringify(room) === JSON.stringify(current)) {
-                    return {room: toData(current), result, changed: false}
-                }
-
-                room.version++
-                if (await this.store.write(name, room, current)) return {room: toData(room), result, changed: true}
-            }
-            throw new RoomBusy()
-        })
-    }
-
-    private removeExpired(room: Room) {
-        for (const user of room.users) {
-            if (user.offline !== undefined && now() - user.offline >= this.grace) remove(room, user.name)
-        }
-    }
-
-    // Runs the tasks of a room one after another
-    private queued<T>(name: string, task: () => Promise<T>): Promise<T> {
-        const result = (this.queues.get(name) ?? Promise.resolve()).then(task)
-        const done = result.catch(() => {})
-        this.queues.set(name, done)
-        done.then(() => {
-            if (this.queues.get(name) === done) this.queues.delete(name)
-        })
-        return result
+    private assert<T extends string>(result: T | 'gone'): T {
+        if (result === 'gone') throw new RoomGone()
+        return result as T
     }
 }
 
-function create(seed?: Seed): Room {
-    return {
-        id: randomUUID(),
-        version: 0,
-        hidden: seed?.hidden ?? true,
-        users: seed?.users.map(it => ({name: it.name, avatar: it.avatar, session: '', socket: ''})) ?? [],
-        votes: {...seed?.votes},
-        comments: {},
-    }
+// The hash tag {name} keeps all keys of a room in one slot of a Redis Cluster, as required by the scripts
+function keys(room: string) {
+    const base = `room:{${room}}`
+    return [base, `${base}:users`, `${base}:votes`, `${base}:comments`, `${base}:events`]
 }
 
-function find(room: Room, user: string): Member | undefined {
-    return room.users.find(it => it.name === user)
+function fromChannel(channel: string) {
+    return channel.slice('room:{'.length, -'}:events'.length)
 }
 
-function remove(room: Room, user: string) {
-    room.users = room.users.filter(it => it.name !== user)
-    delete room.votes[user]
-    delete room.comments[user]
-}
-
-function toData(room: Room): RoomData {
-    return {
-        id: room.id,
-        version: room.version,
-        hidden: room.hidden,
-        users: room.users.map(it => ({name: it.name, avatar: it.avatar, online: it.offline === undefined})),
-        votes: {...room.votes},
-        comments: {...room.comments},
-    }
+function toObject(flat: string[]) {
+    const object: {[key: string]: string} = {}
+    for (let i = 0; i < flat.length; i += 2) object[flat[i]] = flat[i + 1]
+    return object
 }
 
 function now() {

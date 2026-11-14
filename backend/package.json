@@ -18,9 +18,7 @@
         "style:fix": "prettier --write ."
     },
     "dependencies": {
-        "@fractalsoftware/random-avatar-generator": "^1.0.11",
         "@scaleway/random-name": "^5.1.1",
-        "@socket.io/redis-adapter": "^8.3.0",
         "eslint-config-prettier": "^10.1.5",
         "ioredis": "^5.11.1",
         "limiter": "^3.0.0",

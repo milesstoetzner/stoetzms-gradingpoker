@@ -1,13 +1,13 @@
 import {afterAll, beforeAll, describe, expect, test} from 'vitest'
 import {ClientEvents} from '../../spec/types'
-import {ack, Client, fetchState, join, stores, TestServer, unique} from './harness'
+import {ack, Client, fetchState, join, TestServer, unique} from './harness'
 
 async function voteConcurrently(clients: Client[]) {
     await Promise.all(clients.map(it => ack(it, ClientEvents.SET_VOTE, {vote: '2.0'})))
 }
 
-describe.each(stores)('concurrency (%s)', store => {
-    const server = new TestServer(store)
+describe('concurrency', () => {
+    const server = new TestServer()
 
     beforeAll(() => server.start())
     afterAll(() => server.stop())
@@ -24,27 +24,19 @@ describe.each(stores)('concurrency (%s)', store => {
     })
 })
 
-// Multiple servers only make sense with a shared store
-describe.runIf(process.env.TEST_REDIS_PORT)('concurrency across servers (redis)', () => {
-    const a = new TestServer('redis')
-    const b = new TestServer('redis')
+describe('concurrency across servers', () => {
+    const a = new TestServer()
+    const b = new TestServer()
 
     beforeAll(() => Promise.all([a.start(), b.start()]))
     afterAll(() => Promise.all([a.stop(), b.stop()]))
 
-    test('concurrent votes on different servers are applied or rejected with a notification', async () => {
+    test('concurrent votes on different servers are all applied', async () => {
         const room = unique('room')
         const clients = Array.from({length: 20}, (_, i) => (i % 2 ? a : b).client())
         for (const [i, client] of clients.entries()) await join(client, room, `user ${i}`)
 
-        // Votes conflicting with a vote on the other server are rejected, the user votes again
-        const results = await Promise.allSettled(clients.map(it => ack(it, ClientEvents.SET_VOTE, {vote: '2.0'})))
-        const rejected = clients.filter((_, i) => results[i]!.status === 'rejected')
-        if (process.env.TEST_REPORT_CONFLICTS) console.log('rejected votes:', rejected.length)
-        for (const client of rejected) {
-            expect(client.notifications).toContain('Room is busy, please try again ...')
-            await ack(client, ClientEvents.SET_VOTE, {vote: '2.0'})
-        }
+        await voteConcurrently(clients)
 
         const state = await fetchState(clients[0]!)
         expect(Object.keys(state.voted)).toHaveLength(20)

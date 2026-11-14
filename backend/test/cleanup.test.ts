@@ -1,11 +1,11 @@
 import {afterAll, beforeAll, describe, expect, test, vi} from 'vitest'
 import {ClientEvents} from '../../spec/types'
-import {ack, join, stores, TestServer, unique} from './harness'
+import {ack, join, TestServer, unique} from './harness'
 
 const TTL = 3
 
-describe.each(stores)('stale room cleanup (%s)', store => {
-    const server = new TestServer(store, {STOETZMS_GRADING_POKER_ROOM_TTL: String(TTL)})
+describe('stale room cleanup', () => {
+    const server = new TestServer({STOETZMS_GRADING_POKER_ROOM_TTL: String(TTL)})
 
     beforeAll(() => server.start())
     afterAll(() => server.stop())

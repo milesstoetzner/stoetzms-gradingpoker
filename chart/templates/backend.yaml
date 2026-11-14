@@ -23,8 +23,6 @@ spec:
           image: "{{ .Values.image.repository }}:backend-{{ include "gradingpoker.imageTag" . }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
-            - name: STOETZMS_GRADING_POKER_STORE
-              value: redis
             # Any node of the Redis Cluster, the backend learns the others from it
             - name: STOETZMS_GRADING_POKER_REDIS_HOST
               value: {{ include "gradingpoker.name" (dict "root" . "component" "redis") }}
