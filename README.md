@@ -10,15 +10,13 @@ Planning poker for grading: examiners vote on a grade in secret, reveal all vote
 ## Features
 
 - **Secret voting:** everyone votes hidden, and all votes are revealed at once.
-- **Grades and verdicts:** grades from 1.0 to 5.0, proposal verdicts (Passed, Rework, Failed) and general options (Supervisor, Withhold, Viewer).
+- **Grading modes:** grades from 1.0 to 5.0, proposal verdicts (Passed, Rework, Failed) and general options (Supervisor, Withhold, Viewer).
 - **Result:** count, average, median, most frequent vote and distribution, downloadable as YAML.
 - **Discussion hint:** the users with the most opposite votes are marked to discuss.
 - **Anonymous comments:** revealed together with the votes, without names.
 - **Presentation mode:** hides your own vote and comment, for sharing your screen.
-- **Rooms without accounts:** join with a room and a user name, and share the room as a link.
-- **Reconnect:** if you lose the connection, you keep your seat and vote.
+- **Simple setup:** no registration and nothing to create up front. Enter a room and a user name, and share the room as a link.
 - **Phones and tablets:** the room adapts to small screens.
-- **Scalable and highly available:** runs with several replicas of every component.
 
 
 ## Usage
@@ -28,34 +26,31 @@ Planning poker for grading: examiners vote on a grade in secret, reveal all vote
 3. **Comment (optional):** write a comment. It is revealed together with the votes and stays anonymous.
 4. **Reveal:** anyone clicks **Show Votes** to see the result.
 5. **Discuss:** the users with the most opposite votes get a **discuss** badge.
-6. **Next round:** **Hide Votes** hides them again; changing a vote does too.
+6. **Next round:** **Hide Votes** hides them again.
 
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    browser([Browser])
-    gateway[Gateway]
-    frontend[Frontend<br/>serves the SPA]
+    user([User])
+    frontend[Frontend]
     backend[Backend]
-    redis[(Redis Cluster)]
+    redis[(Redis)]
 
-    browser -- SPA --> gateway
-    browser -- WebSocket --> gateway
-    gateway --> frontend
-    gateway --> backend
-    backend -- rooms and events --> redis
+    user -- loads the app --> frontend
+    user -- votes and updates --> backend
+    backend -- rooms --> redis
 ```
 
 - **Stateless backends:** all rooms live in Redis, so any backend can serve any user of any room.
-- **Atomic changes:** every change of a room is one atomic step. Changes never conflict or wait for each other, in small and large rooms alike.
+- **Atomic changes:** every change of a room is one atomic step.
 - **Events:** every change is published to everyone in the room. A client loads the room once and applies the changes afterwards.
 - **No missed updates:** changes are numbered. A client that notices a gap, or learns from the regular heartbeat that it is behind, loads the room again.
+- **Reconnect:** a user who loses the connection keeps their seat and vote.
 - **High availability:** every component runs replicated. If a backend fails, its users reconnect to another one and keep their seat. If a Redis node fails, its replica takes over.
-- **Ephemeral rooms:** rooms are kept in memory only, so a Redis failover can lose the last changes.
+- **Rooms are not saved to disk:** Redis keeps them in memory only. If a Redis node fails, the changes made right before can be lost.
 - **Scaling:** more backends serve more users, more Redis nodes hold more rooms.
-- **Anonymity:** the author of a comment never leaves the backend.
 
 
 ## Dev 
