@@ -77,6 +77,9 @@ io.on('error', (err: Error) => {
 /**
  * Converts the internal room into the state sent to clients: votes are only included if they are shown, except for
  * the vote of the recipient (if given).
+ *
+ * Comments are anonymous: they are only included once votes are shown, without their authors and sorted by content
+ * (join or write order would reveal who wrote them). Whether someone commented is never sent.
  */
 function toState(data: RoomData, recipient?: string): RoomState {
     const own = recipient === undefined ? undefined : data.votes[recipient]
@@ -87,6 +90,8 @@ function toState(data: RoomData, recipient?: string): RoomState {
         users: data.users,
         votes: !data.hidden ? data.votes : own === undefined ? {} : {[recipient!]: own},
         voted: Object.fromEntries(Object.keys(data.votes).map(user => [user, true])),
+        comments: data.hidden ? [] : Object.values(data.comments).sort((a, b) => a.localeCompare(b)),
+        ...(recipient === undefined ? {} : {comment: data.comments[recipient] ?? ''}),
     }
 }
 
@@ -217,6 +222,21 @@ io.on('connection', socket => {
 
         // Emit state
         emitState(me, room)
+    })
+
+    onJoined(ClientEvents.SET_COMMENT, async (input, me) => {
+        const data = parser.setComment(input)
+
+        // Update state (comments are only editable while votes are hidden)
+        const room = await persistency.comment(me.room, me.user, data.comment)
+        if (room === 'shown') {
+            emitError('Comments can only be changed while votes are hidden ...')
+            return false
+        }
+
+        // Emit state only to the author: while hidden, the public state did not change, and a broadcast would tell
+        // others that someone commented right now (versions only need to increase, others catch up with the next change)
+        emitOwnState(me, room)
     })
 
     onJoined(ClientEvents.SHOW_VOTES, async (_, me) => {

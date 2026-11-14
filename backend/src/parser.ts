@@ -1,5 +1,5 @@
 import * as z from 'zod/v4'
-import {Ack, BALLOT_VALUES, JoinRoom, RemoveUser, SetVote, validateName} from '../../spec/types'
+import {Ack, BALLOT_VALUES, COMMENT_MAX_LENGTH, JoinRoom, RemoveUser, SetComment, SetVote, validateName} from '../../spec/types'
 
 const _name = z
     .string()
@@ -26,6 +26,14 @@ const _setVote = z.object({
 
 export function setVote(input: any): SetVote {
     return _setVote.parse(input)
+}
+
+const _setComment = z.object({
+    comment: z.string().trim().max(COMMENT_MAX_LENGTH),
+})
+
+export function setComment(input: any): SetComment {
+    return _setComment.parse(input)
 }
 
 const _removeUser = z.object({

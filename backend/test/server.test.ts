@@ -288,4 +288,88 @@ describe.each(persistencies)('server (%s)', persistency => {
             ])
         })
     })
+
+    describe('anonymous comments', () => {
+        test('are hidden until votes are shown, then shown to everyone without authors', async () => {
+            const room = unique('room')
+            const alice = server.client()
+            const bob = server.client()
+            const carol = server.client()
+            await join(alice, room, 'alice')
+            await join(bob, room, 'bob')
+            await join(carol, room, 'carol')
+
+            const received: unknown[] = []
+            carol.on(ServerEvents.ROOM_STATE as any, (data: unknown) => received.push(data))
+
+            expect(await ack(alice, ClientEvents.SET_COMMENT, {comment: '  very solid evaluation  '})).toEqual({ok: true})
+            expect(await ack(bob, ClientEvents.SET_COMMENT, {comment: 'Related work is thin'})).toEqual({ok: true})
+
+            // Own comment only for the author, nothing for others (not even a broadcast)
+            expect(alice.state?.comment).toBe('very solid evaluation')
+            expect(alice.state?.comments).toEqual([])
+            await sleep(100)
+            expect(received).toEqual([])
+            expect((await fetchState(carol)).comments).toEqual([])
+
+            await ack(carol, ClientEvents.SHOW_VOTES)
+            await vi.waitFor(() => expect(bob.state?.hidden).toBe(false))
+            for (const client of [alice, bob, carol]) {
+                // Sorted by content, not by author or time
+                expect(client.state?.comments).toEqual(['Related work is thin', 'very solid evaluation'])
+            }
+
+            // Nothing in any state links a comment to a user
+            const state = JSON.stringify(carol.state)
+            expect(state).not.toMatch(/alice[^,]*very solid/)
+            expect(Object.keys(carol.state!)).not.toContain('commented')
+        })
+
+        test('cannot be changed while votes are shown', async () => {
+            const room = unique('room')
+            const alice = server.client()
+            await join(alice, room, 'alice')
+            await ack(alice, ClientEvents.SHOW_VOTES)
+
+            await expect(ack(alice, ClientEvents.SET_COMMENT, {comment: 'late'})).rejects.toThrow()
+            expect(alice.notifications).toContain('Comments can only be changed while votes are hidden ...')
+            expect((await fetchState(alice)).comments).toEqual([])
+        })
+
+        test('can be removed and are removed when the author leaves', async () => {
+            const room = unique('room')
+            const alice = server.client()
+            const bob = server.client()
+            await join(alice, room, 'alice')
+            await join(bob, room, 'bob')
+
+            await ack(alice, ClientEvents.SET_COMMENT, {comment: 'first'})
+            await ack(alice, ClientEvents.SET_COMMENT, {comment: ''})
+            await ack(bob, ClientEvents.SET_COMMENT, {comment: 'from bob'})
+            bob.disconnect()
+            await sleep(100)
+
+            await ack(alice, ClientEvents.SHOW_VOTES)
+            expect(alice.state?.comments).toEqual([])
+        })
+
+        test('are limited in length', async () => {
+            const alice = server.client()
+            await join(alice, unique('room'), 'alice')
+            await expect(ack(alice, ClientEvents.SET_COMMENT, {comment: 'x'.repeat(501)})).rejects.toThrow()
+            expect(alice.notifications[0]).toMatch(/^Invalid comment/)
+        })
+
+        test('survive a reconnect for the author', async () => {
+            const room = unique('room')
+            const alice = server.client()
+            await join(alice, room, 'alice')
+            await ack(alice, ClientEvents.SET_COMMENT, {comment: 'keep me'})
+
+            await drop(alice)
+            const again = server.client(alice.session)
+            await join(again, room, 'alice')
+            expect(again.state?.comment).toBe('keep me')
+        })
+    })
 })

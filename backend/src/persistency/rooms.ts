@@ -3,8 +3,8 @@ import {User} from '../../../spec/types'
 import {Connection, JoinResult, Member, Persistency, Room, RoomBusy, RoomData, RoomGone, Seed, Store} from './types'
 
 // Attempts of an operation if other servers keep changing the room meanwhile. Operations users trigger by clicking
-// (vote, show/hide) give up soon with RoomBusy and the user clicks again. Joins (also automatic on reconnect), leaving
-// and housekeeping (e.g., disconnects) keep starting over, since nobody clicks again for them.
+// (vote, show/hide, comment) give up soon with RoomBusy and the user clicks again. Joins (also automatic on reconnect),
+// leaving and housekeeping (e.g., disconnects) keep starting over, since nobody clicks again for them.
 const ATTEMPTS = {click: 3, automatic: 50}
 
 /**
@@ -105,6 +105,17 @@ export class Rooms implements Persistency {
         return room
     }
 
+    async comment(name: string, user: string, comment: string) {
+        const {room, result} = await this.update(name, room => {
+            if (!find(room, user)) throw new RoomGone()
+            if (!room.hidden) return 'shown' as const
+
+            if (comment) room.comments[user] = comment
+            else delete room.comments[user]
+        })
+        return result ?? room
+    }
+
     async setHidden(name: string, hidden: boolean) {
         const {room} = await this.update(name, room => {
             room.hidden = hidden
@@ -178,6 +189,7 @@ function create(seed?: Seed): Room {
         hidden: seed?.hidden ?? true,
         users: seed?.users.map(it => ({name: it.name, avatar: it.avatar, session: '', socket: ''})) ?? [],
         votes: {...seed?.votes},
+        comments: {},
     }
 }
 
@@ -188,6 +200,7 @@ function find(room: Room, user: string): Member | undefined {
 function remove(room: Room, user: string) {
     room.users = room.users.filter(it => it.name !== user)
     delete room.votes[user]
+    delete room.comments[user]
 }
 
 function toData(room: Room): RoomData {
@@ -197,6 +210,7 @@ function toData(room: Room): RoomData {
         hidden: room.hidden,
         users: room.users.map(it => ({name: it.name, avatar: it.avatar, online: it.offline === undefined})),
         votes: {...room.votes},
+        comments: {...room.comments},
     }
 }
 

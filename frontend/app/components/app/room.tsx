@@ -24,7 +24,7 @@ import {
 } from '../../../../spec/types'
 import Error from './error'
 import {useLocation, useNavigationType, useSearchParams} from '@remix-run/react'
-import {useDebounce} from 'use-debounce'
+import {useDebounce, useDebouncedCallback} from 'use-debounce'
 import Vote from './vote'
 import {
     Dialog,
@@ -39,6 +39,7 @@ import {
 import {Badge} from "../ui/badge";
 import Hover from "./hover";
 import Kick from "./kick";
+import Comment from './comment'
 import {getSession} from '../../lib/session'
 import {findDiscussion} from '../../lib/discussion'
 
@@ -121,6 +122,13 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
             const own = data.votes[props.user]
             if (own !== undefined) setVote(own)
             else if (!data.voted[props.user]) setVote('')
+
+            // Anonymous comments, own comment only in states sent directly to us (keep unsaved edits)
+            setComments(data.comments)
+            if (data.comment !== undefined) {
+                saved.current = data.comment
+                if (!dirty.current) setComment(data.comment)
+            }
         })
 
         socket.on(ServerEvents.CLOSE_ROOM, () => {
@@ -147,6 +155,12 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
     const [voted, setVoted] = React.useState<Voted>({})
     const [vote, setVote] = React.useState<string>('')
     const [presentation, setPresentation] = React.useState<boolean>(false)
+
+    // Own comment (draft), last comment confirmed by the server and whether the draft has unsaved changes
+    const [comment, setComment] = React.useState<string>('')
+    const [comments, setComments] = React.useState<string[]>([])
+    const saved = React.useRef<string>('')
+    const dirty = React.useRef<boolean>(false)
 
     // Users with the most opposite votes, who should discuss (once votes are shown)
     const discussion = hidden ? undefined : findDiscussion(votes)
@@ -184,7 +198,24 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
         request('vote', ClientEvents.SET_VOTE, {vote})
     }
 
+    const saveComment = useDebouncedCallback((value: string) => {
+        request('comment', ClientEvents.SET_COMMENT, {comment: value}, () => {
+            // Further edits meanwhile are saved by the next debounced call
+            if (value === commentRef.current) dirty.current = false
+        })
+    }, 800)
+    const commentRef = React.useRef<string>('')
+
+    function onCommentChange(value: string) {
+        setComment(value)
+        commentRef.current = value
+        dirty.current = true
+        saveComment(value)
+    }
+
     function onLocalShowVotes() {
+        // Do not lose a comment typed right before revealing
+        saveComment.flush()
         request('show', ClientEvents.SHOW_VOTES)
     }
 
@@ -327,6 +358,19 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                     ))}
                                 </TableBody>
                             </Table>
+
+                            {!presentation && (
+                                <div className="pt-6">
+                                    <Comment
+                                        value={comment}
+                                        onChange={onCommentChange}
+                                        saving={isPending('comment')}
+                                        saved={!dirty.current && comment === saved.current}
+                                        locked={!hidden}
+                                        disabled={!connected}
+                                    />
+                                </div>
+                            )}
                         </CardContent>
 
                     </div>
@@ -338,7 +382,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                             </div>
                         ) : (
                             <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 pb-4 duration-500 lg:pb-0">
-                                <ResultContent room={props.room} votes={votes} users={users} discussion={discussion}/>
+                                <ResultContent room={props.room} votes={votes} users={users} discussion={discussion} comments={comments}/>
                             </div>
                         )}
                     </div>

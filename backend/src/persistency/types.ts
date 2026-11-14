@@ -9,6 +9,8 @@ export type RoomData = {
     hidden: boolean
     users: User[]
     votes: Votes
+    // user -> comment, the author never leaves the server
+    comments: {[user: string]: string}
 }
 
 /**
@@ -23,6 +25,7 @@ export type Room = {
     // In join order
     users: Member[]
     votes: Votes
+    comments: {[user: string]: string}
 }
 
 export type Member = {
@@ -83,7 +86,7 @@ export interface Persistency {
     // Creates the room if required, adds the user and hides votes, or takes over the user if the session matches
     join(room: string, user: Omit<User, 'online'>, connection: Connection, seed?: Seed): Promise<JoinResult>
 
-    // Removes the user and their vote
+    // Removes the user, their vote and their comment
     leave(room: string, user: string): Promise<RoomData>
 
     // Removes the user (leave) or marks them as offline, but only if the socket is still the user's current one
@@ -94,6 +97,9 @@ export interface Persistency {
 
     // Sets the vote of the user (who must be in the room) and hides votes
     vote(room: string, user: string, vote: string): Promise<RoomData>
+
+    // Sets (or removes, if empty) the comment of the user (who must be in the room); only while votes are hidden
+    comment(room: string, user: string, comment: string): Promise<RoomData | 'shown'>
 
     setHidden(room: string, hidden: boolean): Promise<RoomData>
 

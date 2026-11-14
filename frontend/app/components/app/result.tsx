@@ -10,7 +10,7 @@ import {Button} from '../ui/button'
 import InfoIcon from './info'
 import Vote from './vote'
 import Hover from "./hover";
-import {MonitorDown} from "lucide-react";
+import {MessageSquareText, MonitorDown} from "lucide-react";
 import {Discussion} from '../../lib/discussion'
 import * as yaml from 'js-yaml'
 
@@ -31,7 +31,7 @@ export function download(name: string, type: string, data: string) {
     document.body.removeChild(element)
 }
 
-export function ResultContent(props: { votes: Votes, users: User[], room: string, discussion?: Discussion }) {
+export function ResultContent(props: { votes: Votes, users: User[], room: string, discussion?: Discussion, comments: string[] }) {
     const values = Object.values(props.votes)
     const strings = values.filter(it => it !== null && it !== undefined && it !== '').map(it => String(it))
     const numbers = strings.map(it => Number(it)).filter(it => !Number.isNaN(it))
@@ -72,6 +72,7 @@ export function ResultContent(props: { votes: Votes, users: User[], room: string
             median,
             most,
             discussion: props.discussion,
+            comments: props.comments,
         }
 
         download(`gradingpoker.${date}.yaml`, 'data:text/yaml;charset=utf-8,', yaml.dump(data, {noRefs: true}))
@@ -175,6 +176,22 @@ export function ResultContent(props: { votes: Votes, users: User[], room: string
                         ))}
                     </TableBody>
                 </Table>
+
+                {props.comments.length > 0 && (
+                    <div className="pt-12">
+                        <h3 className="flex items-center gap-2 pb-4 text-sm font-medium text-muted-foreground">
+                            <MessageSquareText className="size-4"/> Anonymous comments ({props.comments.length})
+                        </h3>
+                        <ul className="grid gap-2">
+                            {props.comments.map((comment, index) => (
+                                <li key={index}
+                                    className="whitespace-pre-wrap break-words rounded-md border bg-background px-3 py-2 text-sm animate-in fade-in">
+                                    {comment}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
             </CardContent>
         </React.Fragment>
     )

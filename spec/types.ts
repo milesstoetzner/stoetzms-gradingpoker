@@ -3,6 +3,7 @@ export enum ClientEvents {
     INIT_STATE = 'init-state',
 
     SET_VOTE = 'set-vote',
+    SET_COMMENT = 'set-comment',
     SHOW_VOTES = 'show-votes',
     HIDE_VOTES = 'hide-votes',
 
@@ -34,6 +35,8 @@ export type JoinRoom = {
  * - `id` changes when a room is recreated (e.g., closed and joined again).
  * - `version` increases with every change of the room; clients ignore states older than the one they have.
  * - `votes` is empty while votes are hidden, except for the recipient's own vote in states sent to them directly.
+ * - `comments` are anonymous: empty while votes are hidden, afterwards all comments sorted alphabetically (never in an
+ *   order or shape that reveals who wrote them). `comment` is the recipient's own comment in states sent to them directly.
  */
 export type RoomState = {
     id: string
@@ -42,6 +45,8 @@ export type RoomState = {
     users: User[]
     votes: Votes
     voted: Voted
+    comments: string[]
+    comment?: string
 }
 
 export type Votes = { [user: string]: string }
@@ -50,6 +55,13 @@ export type Voted = { [user: string]: boolean }
 export type SetVote = {
     vote: string
 }
+
+// Empty comment removes it
+export type SetComment = {
+    comment: string
+}
+
+export const COMMENT_MAX_LENGTH = 500
 
 export type RemoveUser = {
     user: string
@@ -100,6 +112,7 @@ export interface ClientToServerEvents {
     [ClientEvents.REMOVE_USER]: (data: RemoveUser, ack: Ack) => void;
 
     [ClientEvents.SET_VOTE]: (data: SetVote, ack: Ack) => void;
+    [ClientEvents.SET_COMMENT]: (data: SetComment, ack: Ack) => void;
     [ClientEvents.SHOW_VOTES]: (ack: Ack) => void;
     [ClientEvents.HIDE_VOTES]: (ack: Ack) => void;
 
