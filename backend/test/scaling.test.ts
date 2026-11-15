@@ -20,7 +20,8 @@ describe('multiple servers', () => {
         await vi.waitFor(() => expect(bob.state?.voted).toEqual({alice: true}))
 
         await ack(bob, ClientEvents.SHOW_VOTES)
-        await vi.waitFor(() => expect(alice.state?.hidden).toBe(false))
+        // The ack of a request does not wait for its event, which reaches both clients through Redis
+        await vi.waitFor(() => expect([alice.state?.hidden, bob.state?.hidden]).toEqual([false, false]))
         expect(alice.state?.votes).toEqual({alice: '1.3'})
         expect(alice.state?.version).toBe(bob.state?.version)
     })

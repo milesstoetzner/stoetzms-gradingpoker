@@ -1,10 +1,6 @@
 import {CardContent, CardHeader, CardTitle} from '../ui/card'
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '../ui/table'
 import React from 'react'
-// @ts-expect-error The package has no types
-import getAverage from 'average'
-// @ts-expect-error The package has no types
-import getMedian from 'median'
 import {User, Votes} from '../../../../spec/types'
 import {Button} from '../ui/button'
 import InfoIcon from './info'
@@ -13,22 +9,8 @@ import Hover from './hover'
 import {MessageSquareText, MonitorDown} from 'lucide-react'
 import {Discussion} from '../../lib/discussion'
 import * as yaml from 'js-yaml'
-
-type Distribution = {
-    vote: string
-    absolute: number
-    relative: string
-}
-
-export function download(name: string, type: string, data: string) {
-    const element = document.createElement('a')
-    element.setAttribute('href', type + encodeURIComponent(data))
-    element.setAttribute('download', name)
-    element.style.display = 'none'
-    document.body.appendChild(element)
-    element.click()
-    document.body.removeChild(element)
-}
+import {download} from '../../lib/download'
+import {summarize} from '../../lib/statistics'
 
 export function ResultContent(props: {
     votes: Votes
@@ -37,44 +19,16 @@ export function ResultContent(props: {
     discussion?: Discussion
     comments: string[]
 }) {
-    const values = Object.values(props.votes)
-    const strings = values.filter(it => it !== null && it !== undefined && it !== '').map(it => String(it))
-    const numbers = strings.map(it => Number(it)).filter(it => !Number.isNaN(it))
-
-    let distribution: Distribution[] = []
-    strings.forEach(vote => {
-        const found = distribution.find(it => it.vote === vote)
-        if (found) {
-            found.absolute++
-            found.relative = ((found.absolute / strings.length) * 100).toFixed(0) + '%'
-        } else {
-            distribution.push({
-                vote,
-                absolute: 1,
-                relative: ((1 / strings.length) * 100).toFixed(0) + '%',
-            })
-        }
-    })
-    distribution = distribution.sort((a, b) => b.absolute - a.absolute)
-
-    const average = numbers.length === 0 ? '(no numeric votes)' : getAverage(numbers).toFixed(2)
-    const median = numbers.length === 0 ? '(no numeric votes)' : getMedian(numbers).toFixed(2)
-    const most = distribution.length ? distribution.filter(it => it.absolute === distribution[0].absolute) : []
+    const statistics = summarize(props.votes)
 
     function onDownload() {
         const date = new Date().toISOString()
         const data = {
             room: props.room,
             date,
-            users: props.users.map(it => it.name),
+            users: props.users.map(user => user.name),
             votes: props.votes,
-            values,
-            strings,
-            numbers,
-            distribution,
-            average,
-            median,
-            most,
+            ...statistics,
             discussion: props.discussion,
             comments: props.comments,
         }
@@ -112,7 +66,7 @@ export function ResultContent(props: {
                                 Votes
                                 <InfoIcon message="Total numbers of votes" />
                             </TableCell>
-                            <TableCell>{strings.length}</TableCell>
+                            <TableCell>{statistics.strings.length}</TableCell>
                         </TableRow>
 
                         <TableRow className="h-[57px]">
@@ -120,7 +74,7 @@ export function ResultContent(props: {
                                 Average
                                 <InfoIcon message="The mathematical average of numeric votes" />
                             </TableCell>
-                            <TableCell>{average}</TableCell>
+                            <TableCell>{statistics.average}</TableCell>
                         </TableRow>
 
                         <TableRow className="h-[57px]">
@@ -128,7 +82,7 @@ export function ResultContent(props: {
                                 Median
                                 <InfoIcon message="The mathematical median of numeric votes" />
                             </TableCell>
-                            <TableCell>{median}</TableCell>
+                            <TableCell>{statistics.median}</TableCell>
                         </TableRow>
 
                         <TableRow className="h-[57px]">
@@ -138,8 +92,8 @@ export function ResultContent(props: {
                             </TableCell>
                             <TableCell>
                                 <div className="flex flex-wrap items-center gap-2">
-                                    {most.map(it => (
-                                        <Vote vote={it.vote} key={it.vote} />
+                                    {statistics.most.map(share => (
+                                        <Vote vote={share.vote} key={share.vote} />
                                     ))}
                                 </div>
                             </TableCell>
@@ -168,13 +122,13 @@ export function ResultContent(props: {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {distribution.map(dist => (
-                            <TableRow key={dist.vote} className="h-[57px]">
+                        {statistics.distribution.map(share => (
+                            <TableRow key={share.vote} className="h-[57px]">
                                 <TableCell>
-                                    <Vote vote={dist.vote} />
+                                    <Vote vote={share.vote} />
                                 </TableCell>
-                                <TableCell>{dist.absolute}</TableCell>
-                                <TableCell>{dist.relative}</TableCell>
+                                <TableCell>{share.absolute}</TableCell>
+                                <TableCell>{share.relative}</TableCell>
                             </TableRow>
                         ))}
                     </TableBody>

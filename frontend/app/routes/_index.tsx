@@ -2,18 +2,13 @@ import type {MetaFunction} from '@remix-run/node'
 import {JoinCard} from '../components/app/join'
 import React from 'react'
 import {RoomCard} from '../components/app/room'
-import randomName from '@scaleway/random-name'
 import {Toaster} from '../components/ui/sonner'
 import {config} from '../lib/config'
-
-import {useSearchParams} from '@remix-run/react'
+import {useRoomName, useUserName} from '../lib/use-names'
 
 export const meta: MetaFunction = () => {
     return [{title: 'gradingpoker.stoetz.ms'}, {name: 'description', content: 'Welcome to gradingpoker.stoetz.ms!'}]
 }
-
-const KEY_ROOM = 'room'
-const KEY_USER = 'user'
 
 const legalLinks = [
     {label: 'Impressum', href: config.impressumUrl},
@@ -21,73 +16,9 @@ const legalLinks = [
 ].filter((link): link is {label: string; href: string} => link.href !== undefined)
 
 export default function Index() {
-    const [searchParams, setSearchParams] = useSearchParams()
-
     const [process, setProcess] = React.useState<string>('JOIN')
-
-    const [room, setRoom] = React.useState<string>(getRoom())
-
-    function getRoom() {
-        const found = searchParams.get(KEY_ROOM)
-        if (found && found !== '') return found
-        return randomName()
-    }
-
-    React.useEffect(() => {
-        if (!searchParams.get(KEY_ROOM)) {
-            setSearchParam(KEY_ROOM, room)
-        }
-    }, [room, searchParams, setSearchParams])
-
-    function onRoomGenerate() {
-        const generated = randomName()
-        setSearchParam(KEY_ROOM, generated)
-        setRoom(generated)
-    }
-
-    function onRoomChange(e: React.ChangeEvent<HTMLInputElement>) {
-        const changed = e.target.value
-        setSearchParam(KEY_ROOM, changed)
-        setRoom(changed)
-    }
-
-    function setSearchParam(key: string, value: string) {
-        // Replace instead of push, otherwise every keystroke creates a history entry
-        setSearchParams(
-            prev => {
-                const params = new URLSearchParams(prev)
-                params.set(key, value)
-                return params
-            },
-            {replace: true}
-        )
-    }
-
-    const [user, setUser] = React.useState<string>(getUser())
-
-    function getUser() {
-        const param = searchParams.get(KEY_USER)
-        if (param && param !== '') return param
-
-        const found = window.localStorage.getItem(KEY_USER)
-        if (found) return found
-
-        const generated = randomName()
-        window.localStorage.setItem(KEY_USER, generated)
-        return generated
-    }
-
-    function onUserChange(e: React.ChangeEvent<HTMLInputElement>) {
-        const changed = e.target.value
-        window.localStorage.setItem(KEY_USER, changed)
-        setUser(changed)
-    }
-
-    function onUserGenerate() {
-        const generated = randomName()
-        window.localStorage.setItem(KEY_USER, generated)
-        setUser(generated)
-    }
+    const room = useRoomName()
+    const user = useUserName()
 
     return (
         <div className="flex min-h-svh flex-col items-center justify-center gap-6 p-3 sm:p-6 md:p-10">
@@ -96,35 +27,42 @@ export default function Index() {
             {process === 'JOIN' ? (
                 <div className="flex w-full max-w-sm flex-col gap-6">
                     <JoinCard
-                        room={room}
-                        onRoomChange={onRoomChange}
-                        onRoomGenerate={onRoomGenerate}
-                        user={user}
-                        onUserChange={onUserChange}
-                        onUserGenerate={onUserGenerate}
+                        room={room.value}
+                        onRoomChange={event => room.change(event.target.value)}
+                        onRoomGenerate={room.generate}
+                        user={user.value}
+                        onUserChange={event => user.change(event.target.value)}
+                        onUserGenerate={user.generate}
                         setProcess={setProcess}
                     />
 
-                    {legalLinks.length > 0 ? (
-                        <div className="flex justify-center gap-2 text-sm text-neutral-500 mt-[-1rem]">
-                            {legalLinks.map((link, index) => (
-                                <React.Fragment key={link.href}>
-                                    {index > 0 ? <span aria-hidden="true">·</span> : null}
-                                    <a href={link.href} target="_blank" rel="noopener noreferrer">
-                                        {link.label}
-                                    </a>
-                                </React.Fragment>
-                            ))}
-                        </div>
-                    ) : null}
+                    <LegalLinks />
                 </div>
             ) : null}
 
             {process === 'ROOM' ? (
                 <div className="flex w-full max-w-6xl flex-col gap-6">
-                    <RoomCard room={room.trim()} user={user.trim()} setProcess={setProcess} />
+                    <RoomCard room={room.value.trim()} user={user.value.trim()} setProcess={setProcess} />
                 </div>
             ) : null}
+        </div>
+    )
+}
+
+// Links to the Impressum and the privacy policy, if configured
+function LegalLinks() {
+    if (!legalLinks.length) return null
+
+    return (
+        <div className="flex justify-center gap-2 text-sm text-neutral-500 mt-[-1rem]">
+            {legalLinks.map((link, index) => (
+                <React.Fragment key={link.href}>
+                    {index > 0 ? <span aria-hidden="true">·</span> : null}
+                    <a href={link.href} target="_blank" rel="noopener noreferrer">
+                        {link.label}
+                    </a>
+                </React.Fragment>
+            ))}
         </div>
     )
 }
