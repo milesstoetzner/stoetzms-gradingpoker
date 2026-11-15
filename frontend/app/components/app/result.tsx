@@ -6,7 +6,7 @@ import {Button} from '../ui/button'
 import InfoIcon from './info'
 import Vote from './vote'
 import Hover from './hover'
-import {MessageSquareText, MonitorDown} from 'lucide-react'
+import {MonitorDown} from 'lucide-react'
 import {Discussion} from '../../lib/discussion'
 import * as yaml from 'js-yaml'
 import {download} from '../../lib/download'
@@ -47,7 +47,7 @@ export function ResultContent(props: {
                 <span className="flex items-center gap-2 ml-auto">
                     <Hover message="Download Result">
                         <Button variant="outline" className="size-8" onClick={onDownload}>
-                            <MonitorDown size="icon" />
+                            <MonitorDown />
                         </Button>
                     </Hover>
                 </span>
@@ -136,8 +136,8 @@ export function ResultContent(props: {
 
                 {props.comments.length > 0 && (
                     <div className="pt-12">
-                        <h3 className="flex items-center gap-2 pb-4 text-sm font-medium text-muted-foreground">
-                            <MessageSquareText className="size-4" /> Anonymous comments ({props.comments.length})
+                        <h3 className="pb-4 text-sm font-medium text-muted-foreground">
+                            Anonymous Comments ({props.comments.length})
                         </h3>
                         <ul className="grid gap-2">
                             {props.comments.map((comment, index) => (

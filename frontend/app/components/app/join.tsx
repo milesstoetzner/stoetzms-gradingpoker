@@ -1,6 +1,7 @@
 import {Button} from '../ui/button'
 import {Card, CardContent, CardFooter, CardHeader, CardTitle} from '../ui/card'
 import {Input} from '../ui/input'
+import {ButtonGroup} from '../ui/button-group'
 import {Label} from '../ui/label'
 import React from 'react'
 import {ArrowRightCircle, RefreshCw} from 'lucide-react'
@@ -34,7 +35,7 @@ export function JoinCard(props: {
                 <div className="flex flex-col gap-6">
                     <div className="grid gap-2">
                         <Label htmlFor="room">Room</Label>
-                        <div className="flex w-full max-w-sm items-center gap-2">
+                        <ButtonGroup className="w-full max-w-sm">
                             <Input
                                 id="room"
                                 type="text"
@@ -44,18 +45,18 @@ export function JoinCard(props: {
                                 required
                             />
 
-                            <Hover message="Regenerate room">
-                                <Button variant="outline" onClick={props.onRoomGenerate}>
-                                    <RefreshCw size="icon" />
+                            <Hover message="Regenerate Room">
+                                <Button variant="outline" className="shrink-0" onClick={props.onRoomGenerate}>
+                                    <RefreshCw />
                                 </Button>
                             </Hover>
-                        </div>
+                        </ButtonGroup>
                         {roomError && <p className="text-sm text-destructive">{roomError}</p>}
                     </div>
 
                     <div className="grid gap-2">
                         <Label htmlFor="user">User</Label>
-                        <div className="flex w-full max-w-sm items-center gap-2">
+                        <ButtonGroup className="w-full max-w-sm">
                             <Input
                                 id="user"
                                 type="text"
@@ -65,12 +66,12 @@ export function JoinCard(props: {
                                 required
                             />
 
-                            <Hover message="Regenerate user">
-                                <Button variant="outline" onClick={props.onUserGenerate}>
-                                    <RefreshCw size="icon" />
+                            <Hover message="Regenerate User">
+                                <Button variant="outline" className="shrink-0" onClick={props.onUserGenerate}>
+                                    <RefreshCw />
                                 </Button>
                             </Hover>
-                        </div>
+                        </ButtonGroup>
                         {userError && <p className="text-sm text-destructive">{userError}</p>}
                     </div>
                 </div>

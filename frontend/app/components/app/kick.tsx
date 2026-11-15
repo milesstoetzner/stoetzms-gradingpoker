@@ -1,3 +1,4 @@
+import {useState} from 'react'
 import {
     Dialog,
     DialogClose,
@@ -6,59 +7,37 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from '../ui/dialog'
 import {Button} from '../ui/button'
-import {UserX} from 'lucide-react'
-import {useState} from 'react'
 import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue} from '../ui/select'
 import {User} from '../../../../spec/types'
 
+/**
+ * Dialog which removes another user from the room after choosing them.
+ */
 export default function Kick(props: {
+    open: boolean
+    onOpenChange: (open: boolean) => void
     users: User[]
     me: string
-    onClick: (value: string) => void
-    disabled: boolean
-    pending?: boolean
+    onRemove: (user: string) => void
 }) {
-    const [user, setUser] = useState<string | undefined>()
+    const [user, setUser] = useState<string>()
+    const others = props.users.filter(other => other.name !== props.me)
 
-    const [open, setOpen] = useState<boolean>(false)
+    function onOpenChange(open: boolean) {
+        if (!open) setUser(undefined)
+        props.onOpenChange(open)
+    }
 
-    function onKick() {
+    function onRemove() {
         if (!user) return
-        props.onClick(user)
-        onClose()
+        props.onRemove(user)
+        onOpenChange(false)
     }
-
-    function onClose() {
-        setOpen(false)
-        setUser(undefined)
-    }
-
-    function onOpenChange(next: boolean) {
-        if (next) return setOpen(true)
-        onClose()
-    }
-
-    const others = props.users.filter(it => it.name !== props.me)
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogTrigger asChild>
-                <Button
-                    type="submit"
-                    className="w-full"
-                    variant="secondary"
-                    disabled={props.disabled || !others.length || props.pending}
-                >
-                    <UserX />{' '}
-                    <span>
-                        Remove<span className="hidden sm:inline"> User</span>
-                    </span>
-                </Button>
-            </DialogTrigger>
-
+        <Dialog open={props.open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
                     <DialogTitle>Remove User</DialogTitle>
@@ -71,9 +50,9 @@ export default function Kick(props: {
                     </SelectTrigger>
                     <SelectContent>
                         <SelectGroup className="pb-2">
-                            {others.map((user: User) => (
-                                <SelectItem key={user.name} value={user.name}>
-                                    {user.name}
+                            {others.map(other => (
+                                <SelectItem key={other.name} value={other.name}>
+                                    {other.name}
                                 </SelectItem>
                             ))}
                         </SelectGroup>
@@ -82,11 +61,9 @@ export default function Kick(props: {
 
                 <DialogFooter>
                     <DialogClose asChild>
-                        <Button variant="outline" onClick={onClose}>
-                            No
-                        </Button>
+                        <Button variant="outline">No</Button>
                     </DialogClose>
-                    <Button type="submit" onClick={onKick} disabled={!user}>
+                    <Button type="submit" onClick={onRemove} disabled={!user}>
                         Yes
                     </Button>
                 </DialogFooter>

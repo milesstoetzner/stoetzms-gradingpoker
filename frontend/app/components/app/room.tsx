@@ -6,7 +6,6 @@ import {useRoom} from '../../lib/use-room'
 import Actions from './actions'
 import Comment from './comment'
 import Debug from './debug'
-import Error from './error'
 import {ResultContent} from './result'
 import RoomHeader from './room-header'
 import Users from './users'
@@ -33,8 +32,6 @@ export function RoomCard(props: {room: string; user: string; setProcess: (proces
 
     return (
         <div className="flex flex-col gap-6">
-            <Error error={room.error} />
-
             {!room.joined && <JoiningCard room={props.room} />}
 
             {room.joined && (
@@ -44,11 +41,12 @@ export function RoomCard(props: {room: string; user: string; setProcess: (proces
                             <RoomHeader
                                 name={props.room}
                                 room={room}
+                                me={props.user}
                                 presentation={presentation}
                                 onPresentationChange={setPresentation}
                             />
 
-                            <CardContent className="px-4 sm:px-6 lg:min-h-[450px]">
+                            <CardContent className="px-4 sm:px-6 lg:min-h-[750px]">
                                 <Users
                                     room={room}
                                     me={props.user}
@@ -61,8 +59,6 @@ export function RoomCard(props: {room: string; user: string; setProcess: (proces
                                         <Comment
                                             value={room.comment}
                                             onChange={room.setComment}
-                                            saving={room.isPending('comment')}
-                                            saved={room.commentSaved}
                                             locked={!room.hidden}
                                             disabled={!room.connected}
                                         />
@@ -71,26 +67,30 @@ export function RoomCard(props: {room: string; user: string; setProcess: (proces
                             </CardContent>
                         </div>
 
-                        <div className="flex min-w-0 flex-col gap-6 bg-muted lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:min-h-[200px]">
-                            {room.hidden ? (
-                                <div className="hidden h-full items-center justify-center lg:flex">
-                                    <p className="text-sm text-center">Still voting ...</p>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 pb-4 duration-500 lg:pb-0">
-                                    <ResultContent
-                                        room={props.room}
-                                        votes={room.votes}
-                                        users={room.users}
-                                        discussion={discussion}
-                                        comments={room.comments}
-                                    />
-                                </div>
-                            )}
+                        {/* On wide screens, the left side sets the height and the result scrolls, so that the card keeps its
+                            size when the result appears */}
+                        <div className="relative min-w-0 bg-muted lg:col-start-2 lg:row-span-2 lg:row-start-1">
+                            <div className="flex flex-col gap-6 lg:absolute lg:inset-0 lg:overflow-y-auto">
+                                {room.hidden ? (
+                                    <div className="hidden h-full items-center justify-center lg:flex">
+                                        <p className="text-sm text-center">Still voting ...</p>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 pb-4 duration-500 lg:pb-0">
+                                        <ResultContent
+                                            room={props.room}
+                                            votes={room.votes}
+                                            users={room.users}
+                                            discussion={discussion}
+                                            comments={room.comments}
+                                        />
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div className="min-w-0 pb-4 lg:col-start-1 lg:row-start-2 lg:pb-0">
-                            <Actions room={room} me={props.user} />
+                            <Actions room={room} />
                         </div>
                     </div>
                 </Card>

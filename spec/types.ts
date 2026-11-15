@@ -57,17 +57,18 @@ export type RoomState = {
  *
  * - `joined` and `voted` hide the votes.
  * - `voted` does not include the vote, `shown` includes all votes and comments.
- * - `left` includes the remaining comments while votes are shown.
+ * - `left` includes the remaining comments while votes are shown, and who removed the user, if someone did.
+ * - `shown` and `hidden` include who showed or hid the votes.
  * - `version` is no change but a heartbeat with the current version, for clients which missed the last change.
  */
 export type RoomEvent = {id: string; version: number} & (
     | {type: 'joined'; user: string}
     | {type: 'online'; user: string}
     | {type: 'offline'; user: string}
-    | {type: 'left'; user: string; comments?: string[]}
+    | {type: 'left'; user: string; by?: string; comments?: string[]}
     | {type: 'voted'; user: string}
-    | {type: 'shown'; votes: Votes; comments: string[]}
-    | {type: 'hidden'}
+    | {type: 'shown'; votes: Votes; comments: string[]; by?: string}
+    | {type: 'hidden'; by?: string}
     | {type: 'version'}
 )
 

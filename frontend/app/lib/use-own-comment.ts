@@ -26,7 +26,6 @@ export function useOwnComment(save: (comment: string, onSaved: () => void) => vo
 
     return {
         value: draft,
-        saved: !changed.current && draft === saved.current,
 
         change(comment: string) {
             setDraft(comment)

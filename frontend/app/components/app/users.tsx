@@ -59,9 +59,7 @@ function UserRow({user, room, me, presentation, discussion}: Props & {user: User
                 {discusses && (
                     <Hover message="Most opposite vote, please discuss">
                         <span className="ml-[0.5rem] inline-flex animate-in fade-in">
-                            <Badge variant="outline" className="border-amber-500 text-amber-700">
-                                discuss
-                            </Badge>
+                            <Badge className="bg-amber-500 text-white hover:bg-amber-500">discuss</Badge>
                         </span>
                     </Hover>
                 )}

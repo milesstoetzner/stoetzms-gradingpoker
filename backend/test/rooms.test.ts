@@ -25,7 +25,7 @@ describe('rooms', () => {
         expect(await rooms.join(room, 'alice', connection('a'))).toBe('joined')
         expect(await rooms.join(room, 'bob', connection('b'))).toBe('joined')
         await rooms.vote(room, 'alice', '1.0')
-        await rooms.setHidden(room, false)
+        await rooms.setHidden(room, false, 'alice')
         await rooms.leave(room, 'bob', 'alice')
 
         await vi.waitFor(() => expect(events[room]).toHaveLength(5))
@@ -45,7 +45,7 @@ describe('rooms', () => {
         const room = unique('room')
         await rooms.join(room, 'alice', connection('a'))
 
-        await rooms.setHidden(room, true)
+        await rooms.setHidden(room, true, 'alice')
         await rooms.comment(room, 'alice', 'my comment')
         await rooms.leave(room, 'nobody')
         await rooms.disconnect(room, 'alice', 'another socket', 'leave')
@@ -79,7 +79,7 @@ describe('rooms', () => {
     test('comments are locked while votes are shown', async () => {
         const room = unique('room')
         await rooms.join(room, 'alice', connection('a'))
-        await rooms.setHidden(room, false)
+        await rooms.setHidden(room, false, 'alice')
         expect(await rooms.comment(room, 'alice', 'too late')).toBe('shown')
         expect((await rooms.getRoom(room)).comments).toEqual({})
     })
@@ -109,7 +109,7 @@ describe('rooms', () => {
     test('operations on a room which does not exist fail', async () => {
         const room = unique('room')
         await expect(rooms.vote(room, 'alice', '1.0')).rejects.toThrow(RoomGone)
-        await expect(rooms.setHidden(room, false)).rejects.toThrow(RoomGone)
+        await expect(rooms.setHidden(room, false, 'alice')).rejects.toThrow(RoomGone)
         await expect(rooms.getRoom(room)).rejects.toThrow(RoomGone)
         expect(await rooms.sync(room)).toBeUndefined()
 

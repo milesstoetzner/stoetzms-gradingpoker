@@ -88,6 +88,7 @@ export class Broadcast {
                     id,
                     version: event.version,
                     user: event.user,
+                    ...(event.by ? {by: event.by} : {}),
                     ...(event.comments === undefined ? {} : {comments: toList(event.comments)}),
                 })
 
@@ -101,6 +102,7 @@ export class Broadcast {
                     version: event.version,
                     votes: event.votes,
                     comments: toList(event.comments),
+                    ...(event.by ? {by: event.by} : {}),
                 })
 
             default:

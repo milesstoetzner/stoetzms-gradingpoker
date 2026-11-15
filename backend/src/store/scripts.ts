@@ -172,7 +172,7 @@ return 'ok'
 /**
  * Shows or hides the votes. Showing publishes all votes and comments.
  *
- * ARGV: ttl, hidden (1 | 0)
+ * ARGV: ttl, hidden (1 | 0), user who did it
  * Returns: gone | ok
  */
 export const SET_HIDDEN = `${PRELUDE}
@@ -181,12 +181,12 @@ if redis.call('HGET', meta, 'hidden') == ARGV[2] then return 'ok' end
 
 redis.call('HSET', meta, 'hidden', ARGV[2])
 if ARGV[2] == '1' then
-    publish({type = 'hidden'})
+    publish({type = 'hidden', by = ARGV[3]})
 else
     local flat = redis.call('HGETALL', votes)
     local all = {}
     for i = 1, #flat, 2 do all[flat[i]] = flat[i + 1] end
-    publish({type = 'shown', votes = all, comments = sorted()})
+    publish({type = 'shown', votes = all, comments = sorted(), by = ARGV[3]})
 end
 return 'ok'
 `

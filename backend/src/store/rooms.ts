@@ -128,8 +128,9 @@ export class Rooms {
         return this.assert(await this.run<'gone' | 'ok' | 'shown'>('roomComment', room, user, comment))
     }
 
-    async setHidden(room: string, hidden: boolean) {
-        this.assert(await this.run<'gone' | 'ok'>('roomSetHidden', room, hidden ? '1' : '0'))
+    // by: the user who showed or hid the votes
+    async setHidden(room: string, hidden: boolean, by: string) {
+        this.assert(await this.run<'gone' | 'ok'>('roomSetHidden', room, hidden ? '1' : '0', by))
     }
 
     async deleteRoom(room: string) {

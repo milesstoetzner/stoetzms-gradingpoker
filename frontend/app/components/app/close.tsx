@@ -1,4 +1,3 @@
-import {Trash2} from 'lucide-react'
 import {Button} from '../ui/button'
 import {
     Dialog,
@@ -8,24 +7,19 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from '../ui/dialog'
 
 /**
- * Button which closes the room for everyone after a confirmation.
+ * Dialog which closes the room for everyone after a confirmation.
  */
-export default function Close(props: {onClick: () => void; disabled: boolean; pending: boolean}) {
+export default function Close(props: {
+    open: boolean
+    onOpenChange: (open: boolean) => void
+    onClose: () => void
+    pending: boolean
+}) {
     return (
-        <Dialog>
-            <DialogTrigger asChild>
-                <Button type="submit" className="w-full" variant="secondary" disabled={props.disabled}>
-                    <Trash2 />{' '}
-                    <span>
-                        Close<span className="hidden sm:inline"> Room</span>
-                    </span>
-                </Button>
-            </DialogTrigger>
-
+        <Dialog open={props.open} onOpenChange={props.onOpenChange}>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
                     <DialogTitle>Close Room</DialogTitle>
@@ -36,7 +30,7 @@ export default function Close(props: {onClick: () => void; disabled: boolean; pe
                     <DialogClose asChild>
                         <Button variant="outline">No</Button>
                     </DialogClose>
-                    <Button type="submit" onClick={props.onClick} disabled={props.pending}>
+                    <Button type="submit" onClick={props.onClose} disabled={props.pending}>
                         Yes
                     </Button>
                 </DialogFooter>

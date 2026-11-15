@@ -14,6 +14,7 @@ import {
     ServerEvents,
     ServerToClientEvents,
 } from '../../../spec/types'
+import {describe} from './notifications'
 import {getSession} from './session'
 import {useOwnComment} from './use-own-comment'
 import {useRequests} from './use-requests'
@@ -21,6 +22,8 @@ import {useRequests} from './use-requests'
 const CONNECT_TIMEOUT_MILLISECONDS = 2000
 // Errors only show if they last, e.g., not for a short reconnect
 const ERROR_DELAY_MILLISECONDS = 500
+
+const CONNECTION_TOAST = 'connection'
 
 const EMPTY_ROOM: Pick<RoomState, 'hidden' | 'users' | 'votes' | 'voted' | 'comments'> = {
     hidden: true,
@@ -61,6 +64,13 @@ export function useRoom({room, user, seed, debug, onLeft}: Options) {
     const sync = React.useRef(new RoomSync())
     const [state, setState] = React.useState<RoomState>()
     const [vote, setVote] = React.useState('')
+
+    // Connection problems show as one toast which stays until the connection is back
+    React.useEffect(() => {
+        if (error) toast.error(error, {id: CONNECTION_TOAST, duration: Infinity})
+        else toast.dismiss(CONNECTION_TOAST)
+    }, [error])
+    React.useEffect(() => () => void toast.dismiss(CONNECTION_TOAST), [])
 
     const {request, isPending} = useRequests(socket, debug)
     const comment = useOwnComment((value, onSaved) =>
@@ -132,8 +142,13 @@ export function useRoom({room, user, seed, debug, onLeft}: Options) {
         socket.on(ServerEvents.ROOM_EVENT, (event: RoomEvent) => {
             log('on', ServerEvents.ROOM_EVENT, event.type, event.version)
 
+            const before = sync.current.state
             const result = sync.current.event(event)
-            if (result === 'applied' && sync.current.state) show(sync.current.state)
+            if (result === 'applied' && sync.current.state) {
+                show(sync.current.state)
+                const message = before && describe(event, before, sync.current.state, user)
+                if (message) toast(message)
+            }
             if (result === 'resync') resync()
         })
 
@@ -173,11 +188,9 @@ export function useRoom({room, user, seed, debug, onLeft}: Options) {
         socket,
         connected,
         joined,
-        error,
         ...(state ?? EMPTY_ROOM),
         vote,
         comment: comment.value,
-        commentSaved: comment.saved,
         isPending,
         leave,
 
@@ -189,15 +202,23 @@ export function useRoom({room, user, seed, debug, onLeft}: Options) {
 
         setComment: comment.change,
 
-        showVotes() {
+        // Shows the votes if they are hidden, hides them otherwise
+        toggleVotes() {
+            if (!(state ?? EMPTY_ROOM).hidden) return request('toggle', ClientEvents.HIDE_VOTES)
+
             // Do not lose a comment typed right before revealing
             comment.flush()
-            request('show', ClientEvents.SHOW_VOTES)
+            request('toggle', ClientEvents.SHOW_VOTES)
         },
 
-        hideVotes: () => request('hide', ClientEvents.HIDE_VOTES),
+        removeUser: (name: string) =>
+            request('remove', ClientEvents.REMOVE_USER, {user: name}, () => toast(`Removed ${name} ...`)),
 
-        removeUser: (name: string) => request('remove', ClientEvents.REMOVE_USER, {user: name}),
+        // Leaving on purpose, unlike being removed or the room being closed
+        leaveRoom() {
+            leave()
+            toast('Left the room ...')
+        },
 
         // The server answers with close room to everyone (including us) instead of an ack
         closeRoom: () => request('close', ClientEvents.CLOSE_ROOM),

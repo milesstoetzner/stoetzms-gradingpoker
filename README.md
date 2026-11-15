@@ -26,7 +26,7 @@ Planning poker for grading: examiners vote on a grade in secret, reveal all vote
 3. **Comment (optional):** write a comment. It is revealed together with the votes and stays anonymous.
 4. **Reveal:** anyone clicks **Show Votes** to see the result.
 5. **Discuss:** the users with the most opposite votes get a **discuss** badge.
-6. **Next round:** **Hide Votes** hides them again.
+6. **Next round:** the same button, now **Hide Votes**, hides them again.
 
 
 ## Architecture

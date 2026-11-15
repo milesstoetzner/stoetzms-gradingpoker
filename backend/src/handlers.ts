@@ -51,11 +51,11 @@ export function registerHandlers(client: Client, context: Context) {
     })
 
     client.onJoined(ClientEvents.SHOW_VOTES, async (_, me) => {
-        await rooms.setHidden(me.room, false)
+        await rooms.setHidden(me.room, false, me.user)
     })
 
     client.onJoined(ClientEvents.HIDE_VOTES, async (_, me) => {
-        await rooms.setHidden(me.room, true)
+        await rooms.setHidden(me.room, true, me.user)
     })
 
     client.onJoined(ClientEvents.INIT_STATE, async (_, me) => {

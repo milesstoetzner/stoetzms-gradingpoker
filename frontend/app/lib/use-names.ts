@@ -1,5 +1,5 @@
 import {useSearchParams} from '@remix-run/react'
-import randomName from '@scaleway/random-name'
+import generateName from '@scaleway/random-name'
 import React from 'react'
 
 const KEY_ROOM = 'room'
@@ -17,7 +17,7 @@ type Name = {
  */
 export function useRoomName(): Name {
     const [searchParams, setSearchParams] = useSearchParams()
-    const [room, setRoom] = React.useState(() => searchParams.get(KEY_ROOM) || randomName())
+    const [room, setRoom] = React.useState(() => searchParams.get(KEY_ROOM) || generateName())
 
     const change = React.useCallback(
         (value: string) => {
@@ -40,7 +40,7 @@ export function useRoomName(): Name {
         if (!searchParams.get(KEY_ROOM)) change(room)
     }, [room, searchParams, change])
 
-    return {value: room, change, generate: () => change(randomName())}
+    return {value: room, change, generate: () => change(generateName())}
 }
 
 /**
@@ -55,7 +55,7 @@ export function useUserName(): Name {
         const remembered = window.localStorage.getItem(KEY_USER)
         if (remembered) return remembered
 
-        const generated = randomName()
+        const generated = generateName()
         window.localStorage.setItem(KEY_USER, generated)
         return generated
     })
@@ -66,5 +66,5 @@ export function useUserName(): Name {
         setUser(value)
     }
 
-    return {value: user, change, generate: () => change(randomName())}
+    return {value: user, change, generate: () => change(generateName())}
 }
