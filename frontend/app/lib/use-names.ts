@@ -61,7 +61,8 @@ export function useUserName(): Name {
     })
 
     function change(value: string) {
-        window.localStorage.setItem(KEY_USER, value)
+        // An empty name is only a moment while typing, the browser keeps remembering the last real one
+        if (value.trim()) window.localStorage.setItem(KEY_USER, value)
         setUser(value)
     }
 

@@ -1,5 +1,5 @@
-import {useLocation, useNavigationType, useSearchParams} from '@remix-run/react'
-import {useEffect, useState} from 'react'
+import {useSearchParams} from '@remix-run/react'
+import {useState} from 'react'
 import {Card, CardContent} from '../ui/card'
 import {findDiscussion} from '../../lib/discussion'
 import {useRoom} from '../../lib/use-room'
@@ -25,7 +25,6 @@ export function RoomCard(props: {room: string; user: string; setProcess: (proces
         debug,
         onLeft: () => props.setProcess('JOIN'),
     })
-    useLeaveOnBack(room.leave)
 
     const [presentation, setPresentation] = useState(false)
 
@@ -109,27 +108,4 @@ function JoiningCard(props: {room: string}) {
             <p className="text-sm text-center">Joining {props.room} ...</p>
         </Card>
     )
-}
-
-// Leaves the room when the user navigates back in the browser
-function useLeaveOnBack(leave: () => void) {
-    const location = useLocation()
-    const navigationType = useNavigationType()
-    const [renders, setRenders] = useState(0)
-    const development = '__REACT_DEVTOOLS_GLOBAL_HOOK__' in window
-
-    useEffect(() => {
-        // The effect also runs when the room is shown, twice in development (strict mode)
-        if (renders < (development ? 2 : 1)) {
-            console.log('render', renders)
-            return setRenders(previous => previous + 1)
-        }
-
-        if (navigationType === 'POP') {
-            console.log('browser', 'back')
-            leave()
-        }
-        // Only a navigation is of interest
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [location])
 }
