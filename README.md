@@ -28,6 +28,9 @@ Planning poker for grading: examiners vote on a grade in secret, reveal all vote
 5. **Discuss:** the users with the most opposite votes get a **discuss** badge.
 6. **Next round:** the same button, now **Hide Votes**, hides them again.
 
+**Rooms have no password.** Anyone who knows the room name can join and see the users, the votes once they are revealed and the anonymous comments.
+So use a new room name for every grading, make it hard to guess (the generated names are easy to guess: there are only about 25,000 of them), share it only with the examiners, and close the room afterwards.
+
 
 ## Architecture
 
@@ -41,6 +44,22 @@ Planning poker for grading: examiners vote on a grade in secret, reveal all vote
 - **High availability:** every component runs replicated. If a backend fails, its users reconnect to another one and keep their seat. If a Redis node fails, its replica takes over.
 - **Persistence:** rooms are written to disk about once a second, so they survive restarts. If a Redis node fails, the changes of the last second can be lost.
 - **Scaling:** more backends serve more users, more Redis nodes hold more rooms.
+
+### Redis keys
+
+All state is in Redis; the backend keeps nothing else. A room `<name>` uses these keys:
+
+| Key                        | Type                   | Content                                                                                       |
+|----------------------------|------------------------|-----------------------------------------------------------------------------------------------|
+| `room:{<name>}`            | hash                   | `id` (new for every new room of that name), `version` (increases with every change), `hidden` (`1` or `0`), `seq` (counter for the join order) |
+| `room:{<name>}:users`      | hash                   | user name → JSON `{session, socket, seq, offline?}`; `offline` is the time (epoch seconds) the user lost the connection |
+| `room:{<name>}:votes`      | hash                   | user name → vote                                                                              |
+| `room:{<name>}:comments`   | hash                   | user name → comment; the author never leaves the backend                                      |
+| `room:{<name>}:events`     | sharded pub/sub channel | every change, as JSON with its new `version`; stores nothing                                 |
+
+- The braces are a hash tag: all keys of a room are in the same slot of the Redis Cluster, so one script can change them together.
+- Every change resets the expiry of the four hashes to `STOETZMS_GRADING_POKER_ROOM_TTL`, so a room without changes is deleted by Redis itself.
+- Closing a room deletes its four hashes.
 
 
 ## Dev 
