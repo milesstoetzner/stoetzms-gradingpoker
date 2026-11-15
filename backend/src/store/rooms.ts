@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto'
+import {Cluster} from 'ioredis'
 import {connect, Connection as Redis} from '../redis'
 import * as scripts from './scripts'
 import {Connection, JoinResult, RoomData, RoomGone, Seed, StoreEvent} from './types'
@@ -63,9 +64,12 @@ export class Rooms {
         await Promise.allSettled([this.redis?.quit(), this.subscriber?.quit()])
     }
 
+    // Whether rooms can be read and written. A Redis Cluster answers pings even while it is down as a whole (e.g., a
+    // part of the rooms has no node), hence, its own state is checked as well.
     async health() {
         try {
             await this.redis.ping()
+            if (this.redis instanceof Cluster) return /^cluster_state:ok/m.test(await this.redis.cluster('INFO'))
             return true
         } catch (e) {
             console.log(e)

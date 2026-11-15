@@ -115,7 +115,7 @@ Do not pass `--wait` on the first install: the Redis Cluster is formed in a hook
 
 ### Redis Cluster down after all Redis pods restarted
 
-If all Redis pods restart at once (e.g., the whole Kubernetes cluster was down), the Redis Cluster does not come back by itself: every vote fails with "Unexpected error on the server", although all pods are running.
+If all Redis pods restart at once (e.g., the whole Kubernetes cluster was down), the Redis Cluster does not come back by itself: the backends are not ready and every vote fails with "Unexpected error on the server", although all Redis pods are running.
 The Redis nodes remember each other by IP address, and after such a restart every node has a new one.
 Restarting single pods, as in a rolling update, is not affected.
 
