@@ -11,6 +11,11 @@ module.exports = {
         ecmaVersion: 'latest',
         sourceType: 'module',
     },
+    env: {
+        node: true,
+        es2022: true,
+    },
+    ignorePatterns: ['build'],
 
     // Base config
     extends: ['eslint:recommended', 'prettier'],
@@ -33,6 +38,14 @@ module.exports = {
                 },
             },
             extends: ['plugin:@typescript-eslint/recommended', 'plugin:import/recommended', 'plugin:import/typescript'],
+        },
+
+        // Tests cast freely to reach into the socket.io client
+        {
+            files: ['test/**/*.ts'],
+            rules: {
+                '@typescript-eslint/no-explicit-any': 'off',
+            },
         },
 
         // Node

@@ -1,6 +1,5 @@
 import {Button} from '../ui/button'
 import {Share2} from 'lucide-react'
-import React from 'react'
 import copy from 'copy-to-clipboard'
 import {toast} from 'sonner'
 import Hover from './hover'

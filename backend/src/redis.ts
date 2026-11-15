@@ -10,7 +10,8 @@ export type Connection = Redis | Cluster
  * client learns the other nodes from it, sends every key to the node that owns it and follows failovers.
  */
 export function connect(): Connection {
-    if (!config.redisCluster) return new Redis({host: config.redis, port: config.redisPort, password: config.redisPassword})
+    if (!config.redisCluster)
+        return new Redis({host: config.redis, port: config.redisPort, password: config.redisPassword})
 
     return new Cluster([{host: config.redis, port: config.redisPort}], {
         // Required for the sharded pub/sub of the socket.io adapter: one subscriber connection per shard

@@ -97,12 +97,20 @@ export class Rooms {
 
     // Creates the room if required, adds the user and hides votes, or takes over the user if the session matches
     async join(room: string, user: string, connection: Connection, seed?: Seed): Promise<JoinResult> {
-        return this.run('roomJoin', room, user, connection.session, connection.socket, randomUUID(), seed ? JSON.stringify(seed) : '')
+        return this.run<JoinResult>(
+            'roomJoin',
+            room,
+            user,
+            connection.session,
+            connection.socket,
+            randomUUID(),
+            seed ? JSON.stringify(seed) : ''
+        )
     }
 
     // Removes the user, their vote and their comment (by: who removed them, if not themselves)
     async leave(room: string, user: string, by?: string) {
-        this.assert(await this.run('roomLeave', room, user, by ?? ''))
+        this.assert(await this.run<'gone' | 'ok'>('roomLeave', room, user, by ?? ''))
     }
 
     // Removes the user (leave) or marks them as offline, but only if the socket is still the user's current one
@@ -112,16 +120,16 @@ export class Rooms {
 
     // Sets the vote of the user (who must be in the room) and hides votes
     async vote(room: string, user: string, vote: string) {
-        this.assert(await this.run('roomVote', room, user, vote))
+        this.assert(await this.run<'gone' | 'ok'>('roomVote', room, user, vote))
     }
 
     // Sets (or removes, if empty) the comment of the user (who must be in the room); only while votes are hidden
     async comment(room: string, user: string, comment: string): Promise<'ok' | 'shown'> {
-        return this.assert(await this.run('roomComment', room, user, comment))
+        return this.assert(await this.run<'gone' | 'ok' | 'shown'>('roomComment', room, user, comment))
     }
 
     async setHidden(room: string, hidden: boolean) {
-        this.assert(await this.run('roomSetHidden', room, hidden ? '1' : '0'))
+        this.assert(await this.run<'gone' | 'ok'>('roomSetHidden', room, hidden ? '1' : '0'))
     }
 
     async deleteRoom(room: string) {
@@ -130,16 +138,16 @@ export class Rooms {
 
     // Removes offline users whose grace period ended and returns the current version, or undefined if the room is gone
     async sync(room: string): Promise<{id: string; version: number} | undefined> {
-        const result = await this.run('roomSync', room, now(), this.grace)
+        const result = await this.run<[string, string] | null>('roomSync', room, now(), this.grace)
         if (!result) return
         return {id: result[0], version: Number(result[1])}
     }
 
     async getRoom(room: string): Promise<RoomData> {
-        const result = await this.run('roomSnapshot', room)
+        const result = await this.run<string[][] | null>('roomSnapshot', room)
         if (!result) throw new RoomGone()
 
-        const [meta, users, votes, comments] = (result as string[][]).map(toObject)
+        const [meta, users, votes, comments] = result.map(toObject) as [Fields, Fields, Fields, Fields]
         return {
             id: meta.id,
             version: Number(meta.version),
@@ -153,8 +161,10 @@ export class Rooms {
         }
     }
 
-    private run(command: keyof typeof COMMANDS, room: string, ...args: (string | number)[]): Promise<any> {
-        return (this.redis as any)[command](...keys(room), this.ttl, ...args)
+    // Runs a script (registered as command of the connection in init)
+    private run<T>(command: keyof typeof COMMANDS, room: string, ...args: (string | number)[]): Promise<T> {
+        const scripts = this.redis as unknown as Record<string, (...args: (string | number)[]) => Promise<T>>
+        return scripts[command]!(...keys(room), this.ttl, ...args)
     }
 
     private assert<T extends string>(result: T | 'gone'): T {
@@ -173,8 +183,10 @@ function fromChannel(channel: string) {
     return channel.slice('room:{'.length, -'}:events'.length)
 }
 
+type Fields = {[key: string]: string}
+
 function toObject(flat: string[]) {
-    const object: {[key: string]: string} = {}
+    const object: Fields = {}
     for (let i = 0; i < flat.length; i += 2) object[flat[i]] = flat[i + 1]
     return object
 }

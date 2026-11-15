@@ -52,7 +52,7 @@ type SocketData =
 
 type Me = {room: string; user: string}
 
-const io = new Server<ClientToServerEvents, ServerToClientEvents, {}, SocketData>(http, {
+const io = new Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>(http, {
     path: config.path,
     // WebSocket only: long-polling would require sticky sessions when running multiple servers
     transports: ['websocket'],
@@ -62,7 +62,6 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, {}, SocketData
     pingTimeout: 10000,
 })
 
-// @ts-ignore
 io.on('error', (err: Error) => {
     console.log('server', 'on', 'error', err)
 })
@@ -166,7 +165,13 @@ rooms.onEvent((room: string, event: StoreEvent) => {
             return emitEvent(room, {type: 'joined', id, version: event.version, user: event.user})
 
         case 'shown':
-            return emitEvent(room, {type: 'shown', id, version: event.version, votes: event.votes, comments: list(event.comments)})
+            return emitEvent(room, {
+                type: 'shown',
+                id,
+                version: event.version,
+                votes: event.votes,
+                comments: list(event.comments),
+            })
 
         default:
             return emitEvent(room, event)
@@ -211,7 +216,9 @@ io.on('connection', socket => {
      * Errors (e.g., invalid input) are reported to the client.
      */
     function on(event: ClientEvents, handler: (input: unknown) => Promise<boolean | void>) {
-        socket.on(event as any, async (...args: unknown[]) => {
+        // The handlers are registered by event name, which the typed socket does not allow
+        const untyped = socket as unknown as {on(event: string, listener: (...args: unknown[]) => void): void}
+        untyped.on(event, async (...args: unknown[]) => {
             const ack = args[args.length - 1] as Ack
             const input = args.length > 1 ? args[0] : undefined
 

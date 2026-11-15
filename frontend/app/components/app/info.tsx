@@ -1,6 +1,5 @@
 import {Button} from '../ui/button'
 import Hover from './hover'
-import React from 'react'
 import {Info} from 'lucide-react'
 
 export default function InfoIcon(props: {message: string}) {

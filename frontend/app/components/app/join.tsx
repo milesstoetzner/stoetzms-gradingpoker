@@ -3,7 +3,7 @@ import {Card, CardContent, CardFooter, CardHeader, CardTitle} from '../ui/card'
 import {Input} from '../ui/input'
 import {Label} from '../ui/label'
 import React from 'react'
-import {ArrowLeft, ArrowLeftCircle, ArrowRightCircle, ArrowRightLeft, RefreshCw, Vote} from 'lucide-react'
+import {ArrowRightCircle, RefreshCw} from 'lucide-react'
 import Hover from './hover'
 import {validateName} from '../../../../spec/types'
 import {Logo} from './logo'
@@ -76,7 +76,11 @@ export function JoinCard(props: {
                 </div>
             </CardContent>
             <CardFooter className="flex-col gap-2">
-                <Button className="w-full" onClick={() => props.setProcess('ROOM')} disabled={!!roomError || !!userError}>
+                <Button
+                    className="w-full"
+                    onClick={() => props.setProcess('ROOM')}
+                    disabled={!!roomError || !!userError}
+                >
                     <ArrowRightCircle /> Join
                 </Button>
             </CardFooter>

@@ -1,5 +1,4 @@
 import {Button} from '../ui/button'
-import React from 'react'
 
 export default function Vote(props: {vote: string}) {
     return (

@@ -1,16 +1,16 @@
 import {CardContent, CardHeader, CardTitle} from '../ui/card'
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '../ui/table'
 import React from 'react'
-// @ts-ignore
+// @ts-expect-error The package has no types
 import getAverage from 'average'
-// @ts-ignore
+// @ts-expect-error The package has no types
 import getMedian from 'median'
 import {User, Votes} from '../../../../spec/types'
 import {Button} from '../ui/button'
 import InfoIcon from './info'
 import Vote from './vote'
-import Hover from "./hover";
-import {MessageSquareText, MonitorDown} from "lucide-react";
+import Hover from './hover'
+import {MessageSquareText, MonitorDown} from 'lucide-react'
 import {Discussion} from '../../lib/discussion'
 import * as yaml from 'js-yaml'
 
@@ -19,7 +19,6 @@ type Distribution = {
     absolute: number
     relative: string
 }
-
 
 export function download(name: string, type: string, data: string) {
     const element = document.createElement('a')
@@ -31,7 +30,13 @@ export function download(name: string, type: string, data: string) {
     document.body.removeChild(element)
 }
 
-export function ResultContent(props: { votes: Votes, users: User[], room: string, discussion?: Discussion, comments: string[] }) {
+export function ResultContent(props: {
+    votes: Votes
+    users: User[]
+    room: string
+    discussion?: Discussion
+    comments: string[]
+}) {
     const values = Object.values(props.votes)
     const strings = values.filter(it => it !== null && it !== undefined && it !== '').map(it => String(it))
     const numbers = strings.map(it => Number(it)).filter(it => !Number.isNaN(it))
@@ -41,15 +46,14 @@ export function ResultContent(props: { votes: Votes, users: User[], room: string
         const found = distribution.find(it => it.vote === vote)
         if (found) {
             found.absolute++
-            found.relative = ((found.absolute / strings.length) * 100).toFixed(0) + "%"
+            found.relative = ((found.absolute / strings.length) * 100).toFixed(0) + '%'
         } else {
             distribution.push({
                 vote,
                 absolute: 1,
-                relative: ((1 / strings.length) * 100).toFixed(0) + "%"
+                relative: ((1 / strings.length) * 100).toFixed(0) + '%',
             })
         }
-
     })
     distribution = distribution.sort((a, b) => b.absolute - a.absolute)
 
@@ -87,13 +91,12 @@ export function ResultContent(props: { votes: Votes, users: User[], room: string
                 <CardTitle>Result</CardTitle>
 
                 <span className="flex items-center gap-2 ml-auto">
-                                <Hover message="Download Result">
-                                <Button variant="outline" className="size-8" onClick={onDownload}>
-                                    <MonitorDown size="icon"/>
-                                </Button>
-                                </Hover>
-                            </span>
-
+                    <Hover message="Download Result">
+                        <Button variant="outline" className="size-8" onClick={onDownload}>
+                            <MonitorDown size="icon" />
+                        </Button>
+                    </Hover>
+                </span>
             </CardHeader>
             <CardContent className="px-4 sm:px-6">
                 <Table>
@@ -107,7 +110,7 @@ export function ResultContent(props: { votes: Votes, users: User[], room: string
                         <TableRow className="h-[57px]">
                             <TableCell className="flex items-center">
                                 Votes
-                                <InfoIcon message="Total numbers of votes"/>
+                                <InfoIcon message="Total numbers of votes" />
                             </TableCell>
                             <TableCell>{strings.length}</TableCell>
                         </TableRow>
@@ -115,7 +118,7 @@ export function ResultContent(props: { votes: Votes, users: User[], room: string
                         <TableRow className="h-[57px]">
                             <TableCell className="flex items-center">
                                 Average
-                                <InfoIcon message="The mathematical average of numeric votes"/>
+                                <InfoIcon message="The mathematical average of numeric votes" />
                             </TableCell>
                             <TableCell>{average}</TableCell>
                         </TableRow>
@@ -123,7 +126,7 @@ export function ResultContent(props: { votes: Votes, users: User[], room: string
                         <TableRow className="h-[57px]">
                             <TableCell className="flex items-center">
                                 Median
-                                <InfoIcon message="The mathematical median of numeric votes"/>
+                                <InfoIcon message="The mathematical median of numeric votes" />
                             </TableCell>
                             <TableCell>{median}</TableCell>
                         </TableRow>
@@ -131,12 +134,12 @@ export function ResultContent(props: { votes: Votes, users: User[], room: string
                         <TableRow className="h-[57px]">
                             <TableCell className="flex items-center">
                                 Most
-                                <InfoIcon message="The value with the highest absolute votes"/>
+                                <InfoIcon message="The value with the highest absolute votes" />
                             </TableCell>
                             <TableCell>
                                 <div className="flex flex-wrap items-center gap-2">
                                     {most.map(it => (
-                                        <Vote vote={it.vote} key={it.vote}/>
+                                        <Vote vote={it.vote} key={it.vote} />
                                     ))}
                                 </div>
                             </TableCell>
@@ -144,7 +147,7 @@ export function ResultContent(props: { votes: Votes, users: User[], room: string
                     </TableBody>
                 </Table>
 
-                <div className="pt-12"/>
+                <div className="pt-12" />
 
                 <Table>
                     <TableHeader>
@@ -153,13 +156,13 @@ export function ResultContent(props: { votes: Votes, users: User[], room: string
                             <TableHead className="sm:w-[200px]">
                                 <div className="flex items-center">
                                     Absolute
-                                    <InfoIcon message="The absolute number of votes"/>
+                                    <InfoIcon message="The absolute number of votes" />
                                 </div>
                             </TableHead>
                             <TableHead>
                                 <div className="flex items-center">
                                     Relative
-                                    <InfoIcon message="The absolute number of votes relative to all votes"/>
+                                    <InfoIcon message="The absolute number of votes relative to all votes" />
                                 </div>
                             </TableHead>
                         </TableRow>
@@ -168,7 +171,7 @@ export function ResultContent(props: { votes: Votes, users: User[], room: string
                         {distribution.map(dist => (
                             <TableRow key={dist.vote} className="h-[57px]">
                                 <TableCell>
-                                    <Vote vote={dist.vote}/>
+                                    <Vote vote={dist.vote} />
                                 </TableCell>
                                 <TableCell>{dist.absolute}</TableCell>
                                 <TableCell>{dist.relative}</TableCell>
@@ -180,12 +183,14 @@ export function ResultContent(props: { votes: Votes, users: User[], room: string
                 {props.comments.length > 0 && (
                     <div className="pt-12">
                         <h3 className="flex items-center gap-2 pb-4 text-sm font-medium text-muted-foreground">
-                            <MessageSquareText className="size-4"/> Anonymous comments ({props.comments.length})
+                            <MessageSquareText className="size-4" /> Anonymous comments ({props.comments.length})
                         </h3>
                         <ul className="grid gap-2">
                             {props.comments.map((comment, index) => (
-                                <li key={index}
-                                    className="whitespace-pre-wrap break-words rounded-md border bg-background px-3 py-2 text-sm animate-in fade-in">
+                                <li
+                                    key={index}
+                                    className="whitespace-pre-wrap break-words rounded-md border bg-background px-3 py-2 text-sm animate-in fade-in"
+                                >
                                     {comment}
                                 </li>
                             ))}

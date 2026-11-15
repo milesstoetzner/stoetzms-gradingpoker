@@ -34,7 +34,9 @@ describe('server', () => {
         await join(alice, room, 'alice')
         await ack(alice, ClientEvents.SET_VOTE, {vote: '1.3'})
 
-        await vi.waitFor(() => expect(alice.events.at(-1)).toMatchObject({type: 'version', version: 2}), {timeout: 3000})
+        await vi.waitFor(() => expect(alice.events.at(-1)).toMatchObject({type: 'version', version: 2}), {
+            timeout: 3000,
+        })
         expect(alice.events.at(-1)?.id).toBe(alice.state?.id)
     })
 
@@ -311,9 +313,14 @@ describe('server', () => {
             const received: unknown[] = []
             carol.on(ServerEvents.ROOM_STATE as any, (data: unknown) => received.push(data))
             // Heartbeats aside, no event either
-            carol.on(ServerEvents.ROOM_EVENT as any, (data: {type: string}) => data.type !== 'version' && received.push(data))
+            carol.on(
+                ServerEvents.ROOM_EVENT as any,
+                (data: {type: string}) => data.type !== 'version' && received.push(data)
+            )
 
-            expect(await ack(alice, ClientEvents.SET_COMMENT, {comment: '  very solid evaluation  '})).toEqual({ok: true})
+            expect(await ack(alice, ClientEvents.SET_COMMENT, {comment: '  very solid evaluation  '})).toEqual({
+                ok: true,
+            })
             expect(await ack(bob, ClientEvents.SET_COMMENT, {comment: 'Related work is thin'})).toEqual({ok: true})
 
             // Own comment only for the author, nothing for others (not even an event)

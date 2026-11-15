@@ -21,7 +21,9 @@ import {
     Votes,
     Notification,
     Response,
-    HIDDEN, Ack, Voted,
+    HIDDEN,
+    Ack,
+    Voted,
 } from '../../../../spec/types'
 import Error from './error'
 import {useLocation, useNavigationType, useSearchParams} from '@remix-run/react'
@@ -37,21 +39,21 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '../ui/dialog'
-import {Badge} from "../ui/badge";
-import Hover from "./hover";
-import Kick from "./kick";
+import {Badge} from '../ui/badge'
+import Hover from './hover'
+import Kick from './kick'
 import Comment from './comment'
 import {getSession} from '../../lib/session'
 import {avatarOf} from '../../lib/avatar'
 import {RoomSync} from '../../../../spec/sync'
 import {findDiscussion} from '../../lib/discussion'
 
-export function RoomCard(props: { room: string; user: string; setProcess: (process: string) => void }) {
-    const [searchParams, _] = useSearchParams()
+export function RoomCard(props: {room: string; user: string; setProcess: (process: string) => void}) {
+    const [searchParams] = useSearchParams()
     const debug = searchParams.has('debug')
-    const dev = (window as any).__REACT_DEVTOOLS_GLOBAL_HOOK__ !== undefined
+    const dev = '__REACT_DEVTOOLS_GLOBAL_HOOK__' in window
 
-    const [socket, __] = React.useState<Socket<ServerToClientEvents, ClientToServerEvents>>(() =>
+    const [socket] = React.useState<Socket<ServerToClientEvents, ClientToServerEvents>>(() =>
         io(window.location.origin, {
             timeout: 2000,
             path: '/socket.io',
@@ -80,16 +82,20 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
             setConnected(true)
             setError(undefined)
 
-            socket.emit(ClientEvents.JOIN_ROOM, {
-                user: props.user,
-                room: props.room,
-                session: getSession(),
-                seed: searchParams.has('seed')
-            }, (data: Response) => {
-                console.log('socket', socket.id, 'ack', ClientEvents.JOIN_ROOM, data)
-                if (!data.ok) return
-                setJoined(true)
-            })
+            socket.emit(
+                ClientEvents.JOIN_ROOM,
+                {
+                    user: props.user,
+                    room: props.room,
+                    session: getSession(),
+                    seed: searchParams.has('seed'),
+                },
+                (data: Response) => {
+                    console.log('socket', socket.id, 'ack', ClientEvents.JOIN_ROOM, data)
+                    if (!data.ok) return
+                    setJoined(true)
+                }
+            )
         })
 
         socket.on('disconnect', reason => {
@@ -206,7 +212,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
         }
 
         // Rate limited or failed requests are never acked, hence, the timeout
-        const emitter = socket.timeout(5000) as any
+        const emitter = socket.timeout(5000) as unknown as {emit(event: string, ...args: unknown[]): void}
         if (data === undefined) emitter.emit(event, done)
         else emitter.emit(event, data, done)
     }
@@ -291,200 +297,271 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
 
     return (
         <div className="flex flex-col gap-6">
+            <Error error={error} />
 
-            <Error error={error}/>
+            {!joined && <JoiningCard room={props.room} />}
 
-            {!joined && <JoiningCard room={props.room}/>}
+            {joined && (
+                <Card className="overflow-hidden p-0 shadow-none animate-in fade-in duration-300">
+                    <div className="grid grid-cols-1 p-0 lg:grid-cols-2 lg:grid-rows-[1fr_auto]">
+                        <div className="flex min-w-0 flex-col gap-2 lg:col-start-1 lg:row-start-1 lg:gap-6">
+                            <CardHeader
+                                className="flex flex-row items-center justify-between gap-2 px-4 sm:px-6"
+                                style={{marginTop: '-12px', marginBottom: '-10px'}}
+                            >
+                                <CardTitle className="min-w-0 truncate leading-normal" title={props.room}>
+                                    {props.room}
+                                </CardTitle>
 
-            {joined && <Card className="overflow-hidden p-0 shadow-none animate-in fade-in duration-300">
-                <div className="grid grid-cols-1 p-0 lg:grid-cols-2 lg:grid-rows-[1fr_auto]">
-                    <div className="flex min-w-0 flex-col gap-2 lg:col-start-1 lg:row-start-1 lg:gap-6">
-                        <CardHeader
-                            className="flex flex-row items-center justify-between gap-2 px-4 sm:px-6"
-                            style={{marginTop: '-12px', marginBottom: '-10px'}}
-                        >
-                            <CardTitle className="min-w-0 truncate leading-normal" title={props.room}>{props.room}</CardTitle>
+                                <span className="ml-auto flex shrink-0 items-center gap-2">
+                                    <Hover message="Presentation Mode">
+                                        <Button
+                                            variant={presentation ? 'default' : 'outline'}
+                                            className="size-8"
+                                            onClick={() => setPresentation(prev => !prev)}
+                                        >
+                                            <Presentation size="icon" />
+                                        </Button>
+                                    </Hover>
 
-                            <span className="ml-auto flex shrink-0 items-center gap-2">
-                                <Hover message="Presentation Mode">
-                                <Button variant={presentation ? "default" : "outline"} className="size-8" onClick={() => setPresentation(prev => !prev)}>
-                                    <Presentation size="icon"/>
-                                </Button>
-                                </Hover>
+                                    <Hover message="Refresh Room">
+                                        <Button
+                                            variant="outline"
+                                            className="size-8"
+                                            onClick={onRefresh}
+                                            disabled={!connected || isPending('refresh')}
+                                        >
+                                            <RefreshCw size="icon" />
+                                        </Button>
+                                    </Hover>
 
+                                    <Share />
+                                </span>
+                            </CardHeader>
 
-                                <Hover message="Refresh Room">
-                                <Button variant="outline" className="size-8" onClick={onRefresh} disabled={!connected || isPending('refresh')}>
-                                    <RefreshCw size="icon"/>
-                                </Button>
-                                </Hover>
-
-                                <Share/>
-                            </span>
-
-                        </CardHeader>
-
-                        <CardContent className="px-4 sm:px-6 lg:min-h-[450px]">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="w-[0px] px-1 sm:px-2">User</TableHead>
-                                        <TableHead className="px-1 sm:px-2"></TableHead>
-                                        <TableHead className="w-[45%] px-1 sm:w-[125px] sm:px-2">Vote</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {users.map(user => (
-                                        <TableRow key={user.name} className="animate-in fade-in duration-300">
-                                            <TableCell className="px-1 sm:px-2">
-                                                <Avatar style={{borderWidth: '1px'}} className={user.online ? '' : 'opacity-40'}>
-                                                    <AvatarImage
-                                                        src={`data:image/svg+xml;base64,${btoa(avatarOf(user.name))}`}
-                                                    ></AvatarImage>
-                                                </Avatar>
-                                            </TableCell>
-                                            <TableCell className="break-words px-1 sm:px-2">{user.name} {user.name === props.user && !presentation &&
-                                                <Badge className="ml-[0.5rem]">me</Badge>}
-                                                {discusses(user.name) && (
-                                                    <Hover message="Most opposite vote, please discuss">
-                                                        <span className="ml-[0.5rem] inline-flex animate-in fade-in">
-                                                            <Badge variant="outline" className="border-amber-500 text-amber-700">discuss</Badge>
-                                                        </span>
-                                                    </Hover>
-                                                )}
-                                                {!user.online && (
-                                                    <Hover message="Lost connection, keeps their vote for a while">
-                                                        <span className="ml-[0.5rem] inline-flex">
-                                                            <Badge variant="outline" className="text-muted-foreground">offline</Badge>
-                                                        </span>
-                                                    </Hover>
-                                                )}
-                                            </TableCell>
-                                            <TableCell className="px-1 sm:px-2">
-                                                {user.name === props.user && !presentation ? (
-                                                    <Ballot value={vote} onChange={onVoteChange} disabled={!connected}/>
-                                                ) : voted[user.name] ? (
-                                                    hidden ? (
-                                                        <Hidden/>
-                                                    ) : (
-                                                        <span className="block animate-in fade-in zoom-in-95 duration-300">
-                                                            <Vote vote={votes[user.name]}/>
-                                                        </span>
-                                                    )
-                                                ) : (
-                                                    'Still voting ...'
-                                                )}
-                                            </TableCell>
+                            <CardContent className="px-4 sm:px-6 lg:min-h-[450px]">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[0px] px-1 sm:px-2">User</TableHead>
+                                            <TableHead className="px-1 sm:px-2"></TableHead>
+                                            <TableHead className="w-[45%] px-1 sm:w-[125px] sm:px-2">Vote</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {users.map(user => (
+                                            <TableRow key={user.name} className="animate-in fade-in duration-300">
+                                                <TableCell className="px-1 sm:px-2">
+                                                    <Avatar
+                                                        style={{borderWidth: '1px'}}
+                                                        className={user.online ? '' : 'opacity-40'}
+                                                    >
+                                                        <AvatarImage
+                                                            src={`data:image/svg+xml;base64,${btoa(avatarOf(user.name))}`}
+                                                        ></AvatarImage>
+                                                    </Avatar>
+                                                </TableCell>
+                                                <TableCell className="break-words px-1 sm:px-2">
+                                                    {user.name}{' '}
+                                                    {user.name === props.user && !presentation && (
+                                                        <Badge className="ml-[0.5rem]">me</Badge>
+                                                    )}
+                                                    {discusses(user.name) && (
+                                                        <Hover message="Most opposite vote, please discuss">
+                                                            <span className="ml-[0.5rem] inline-flex animate-in fade-in">
+                                                                <Badge
+                                                                    variant="outline"
+                                                                    className="border-amber-500 text-amber-700"
+                                                                >
+                                                                    discuss
+                                                                </Badge>
+                                                            </span>
+                                                        </Hover>
+                                                    )}
+                                                    {!user.online && (
+                                                        <Hover message="Lost connection, keeps their vote for a while">
+                                                            <span className="ml-[0.5rem] inline-flex">
+                                                                <Badge
+                                                                    variant="outline"
+                                                                    className="text-muted-foreground"
+                                                                >
+                                                                    offline
+                                                                </Badge>
+                                                            </span>
+                                                        </Hover>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="px-1 sm:px-2">
+                                                    {user.name === props.user && !presentation ? (
+                                                        <Ballot
+                                                            value={vote}
+                                                            onChange={onVoteChange}
+                                                            disabled={!connected}
+                                                        />
+                                                    ) : voted[user.name] ? (
+                                                        hidden ? (
+                                                            <Hidden />
+                                                        ) : (
+                                                            <span className="block animate-in fade-in zoom-in-95 duration-300">
+                                                                <Vote vote={votes[user.name]} />
+                                                            </span>
+                                                        )
+                                                    ) : (
+                                                        'Still voting ...'
+                                                    )}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
 
-                            {!presentation && (
-                                <div className="pt-6">
-                                    <Comment
-                                        value={comment}
-                                        onChange={onCommentChange}
-                                        saving={isPending('comment')}
-                                        saved={!dirty.current && comment === saved.current}
-                                        locked={!hidden}
-                                        disabled={!connected}
+                                {!presentation && (
+                                    <div className="pt-6">
+                                        <Comment
+                                            value={comment}
+                                            onChange={onCommentChange}
+                                            saving={isPending('comment')}
+                                            saved={!dirty.current && comment === saved.current}
+                                            locked={!hidden}
+                                            disabled={!connected}
+                                        />
+                                    </div>
+                                )}
+                            </CardContent>
+                        </div>
+
+                        <div className="flex min-w-0 flex-col gap-6 bg-muted lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:min-h-[200px]">
+                            {hidden ? (
+                                <div className="hidden h-full items-center justify-center lg:flex">
+                                    <p className="text-sm text-center">Still voting ...</p>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 pb-4 duration-500 lg:pb-0">
+                                    <ResultContent
+                                        room={props.room}
+                                        votes={votes}
+                                        users={users}
+                                        discussion={discussion}
+                                        comments={comments}
                                     />
                                 </div>
                             )}
-                        </CardContent>
+                        </div>
 
-                    </div>
+                        <div className="min-w-0 pb-4 lg:col-start-1 lg:row-start-2 lg:pb-0">
+                            <CardFooter className="grid grid-cols-2 gap-2 px-4 pt-4 sm:px-6 lg:pt-0">
+                                <Button
+                                    type="submit"
+                                    className="w-full"
+                                    onClick={onLocalShowVotes}
+                                    disabled={!Object.values(voted).length || !connected || isPending('show')}
+                                >
+                                    <Eye /> Show Votes
+                                </Button>
 
-                    <div className="flex min-w-0 flex-col gap-6 bg-muted lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:min-h-[200px]">
-                        {hidden ? (
-                            <div className="hidden h-full items-center justify-center lg:flex">
-                                <p className="text-sm text-center">Still voting ...</p>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 pb-4 duration-500 lg:pb-0">
-                                <ResultContent room={props.room} votes={votes} users={users} discussion={discussion} comments={comments}/>
-                            </div>
-                        )}
-                    </div>
+                                <Button
+                                    type="submit"
+                                    className="w-full"
+                                    variant="secondary"
+                                    onClick={onLocalHideVotes}
+                                    disabled={!connected || isPending('hide')}
+                                >
+                                    <EyeOff /> Hide Votes
+                                </Button>
 
-                    <div className="min-w-0 pb-4 lg:col-start-1 lg:row-start-2 lg:pb-0">
-                        <CardFooter className="grid grid-cols-2 gap-2 px-4 pt-4 sm:px-6 lg:pt-0">
-                            <Button
-                                type="submit"
-                                className="w-full"
-                                onClick={onLocalShowVotes}
-                                disabled={!Object.values(voted).length || !connected || isPending('show')}
-                            >
-                                <Eye/> Show Votes
-                            </Button>
+                                <div className="col-span-2 grid grid-cols-3 gap-2">
+                                    <Kick
+                                        users={users}
+                                        me={props.user}
+                                        onClick={onRemoveUser}
+                                        disabled={!connected}
+                                        pending={isPending('remove')}
+                                    />
 
-                            <Button type="submit" className="w-full" variant="secondary" onClick={onLocalHideVotes}
-                                    disabled={!connected || isPending('hide')}>
-                                <EyeOff/> Hide Votes
-                            </Button>
+                                    <Dialog>
+                                        <DialogTrigger asChild>
+                                            <Button
+                                                type="submit"
+                                                className="w-full"
+                                                variant="secondary"
+                                                disabled={!connected}
+                                            >
+                                                <Trash2 />{' '}
+                                                <span>
+                                                    Close<span className="hidden sm:inline"> Room</span>
+                                                </span>
+                                            </Button>
+                                        </DialogTrigger>
 
-                            <div className="col-span-2 grid grid-cols-3 gap-2">
-                            <Kick users={users} me={props.user} onClick={onRemoveUser} disabled={!connected}
-                                  pending={isPending('remove')}/>
+                                        <DialogContent className="sm:max-w-[425px]">
+                                            <DialogHeader>
+                                                <DialogTitle>Close Room</DialogTitle>
+                                                <DialogDescription>
+                                                    Do you really want to the close the room and reset its state?
+                                                </DialogDescription>
+                                            </DialogHeader>
 
-                            <Dialog>
-                                <DialogTrigger asChild>
-                                    <Button type="submit" className="w-full" variant="secondary" disabled={!connected}>
-                                        <Trash2/> <span>Close<span className="hidden sm:inline"> Room</span></span>
+                                            <DialogFooter>
+                                                <DialogClose asChild>
+                                                    <Button variant="outline">No</Button>
+                                                </DialogClose>
+                                                <Button
+                                                    type="submit"
+                                                    onClick={onLocalCloseRoom}
+                                                    disabled={isPending('close')}
+                                                >
+                                                    Yes
+                                                </Button>
+                                            </DialogFooter>
+                                        </DialogContent>
+                                    </Dialog>
+
+                                    <Button
+                                        type="submit"
+                                        className="w-full"
+                                        onClick={onLocalBack}
+                                        variant="secondary"
+                                        disabled={!connected}
+                                    >
+                                        <CircleArrowLeft />{' '}
+                                        <span>
+                                            Leave<span className="hidden sm:inline"> Room</span>
+                                        </span>
                                     </Button>
-                                </DialogTrigger>
-
-                                <DialogContent className="sm:max-w-[425px]">
-                                    <DialogHeader>
-                                        <DialogTitle>Close Room</DialogTitle>
-                                        <DialogDescription>
-                                            Do you really want to the close the room and reset its state?
-                                        </DialogDescription>
-                                    </DialogHeader>
-
-                                    <DialogFooter>
-                                        <DialogClose asChild>
-                                            <Button variant="outline">No</Button>
-                                        </DialogClose>
-                                        <Button type="submit" onClick={onLocalCloseRoom} disabled={isPending('close')}>
-                                            Yes
-                                        </Button>
-                                    </DialogFooter>
-                                </DialogContent>
-                            </Dialog>
-
-                            <Button type="submit" className="w-full" onClick={onLocalBack} variant="secondary"
-                                    disabled={!connected}>
-                                <CircleArrowLeft/> <span>Leave<span className="hidden sm:inline"> Room</span></span>
-                            </Button>
-                            </div>
-                        </CardFooter>
+                                </div>
+                            </CardFooter>
+                        </div>
                     </div>
-                </div>
-            </Card>
-
-            }
+                </Card>
+            )}
 
             {debug && (
                 <React.Fragment>
+                    <br />
+                    <br />
+                    <br />
 
-                    <br/>
-                    <br/>
-                    <br/>
-
-                    <Button type="submit" className="w-full" onClick={() => {
-                        socket.connect()
-                    }} variant="secondary">
+                    <Button
+                        type="submit"
+                        className="w-full"
+                        onClick={() => {
+                            socket.connect()
+                        }}
+                        variant="secondary"
+                    >
                         Socket Connect
                     </Button>
 
-                    <Button type="submit" className="w-full" onClick={() => {
-                        socket.disconnect()
-                    }} variant="secondary">
+                    <Button
+                        type="submit"
+                        className="w-full"
+                        onClick={() => {
+                            socket.disconnect()
+                        }}
+                        variant="secondary"
+                    >
                         Socket Disconnect
                     </Button>
-
 
                     <pre>
                         {JSON.stringify(
@@ -495,7 +572,7 @@ export function RoomCard(props: { room: string; user: string; setProcess: (proce
                                 hidden,
                                 users,
                                 votes,
-                                voted
+                                voted,
                             },
                             null,
                             4

@@ -54,7 +54,13 @@ describe('room sync', () => {
     test('votes are listed in join order, however they arrive', () => {
         const sync = new RoomSync()
         sync.snapshot({...state(1), users: ['alice', 'bob', 'carol'].map(name => ({name, online: true}))})
-        sync.event({type: 'shown', id: 'room', version: 2, votes: {carol: '3.0', alice: '1.0', bob: '2.0'}, comments: []})
+        sync.event({
+            type: 'shown',
+            id: 'room',
+            version: 2,
+            votes: {carol: '3.0', alice: '1.0', bob: '2.0'},
+            comments: [],
+        })
         expect(Object.keys(sync.state!.votes)).toEqual(['alice', 'bob', 'carol'])
 
         sync.snapshot({...sync.state!, version: 3, votes: {bob: '2.0', carol: '3.0', alice: '1.0'}})

@@ -42,6 +42,8 @@ jobs:
           cache: pnpm
           cache-dependency-path: backend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - run: pnpm lint:check
+      - run: pnpm style:check
       - run: pnpm typecheck
       # Needs the Redis service above
       - run: pnpm test
@@ -66,6 +68,8 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - run: pnpm lint:check
+      - run: pnpm style:check
       - run: pnpm exec tsc --noEmit
       - run: pnpm test
       - run: pnpm build

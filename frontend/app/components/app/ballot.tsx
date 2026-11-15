@@ -1,5 +1,4 @@
 import {Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue} from '../ui/select'
-import React from 'react'
 import {BALLOT} from '../../../../spec/types'
 
 export default function Ballot(props: {value: string; onChange: (value: string) => void; disabled: boolean}) {
@@ -14,7 +13,9 @@ export default function Ballot(props: {value: string; onChange: (value: string) 
                 {groups.map(([label, values], index) => (
                     <SelectGroup
                         key={label}
-                        className={[index > 0 ? 'pt-2 border-t' : '', index < groups.length - 1 ? 'pb-2' : ''].join(' ')}
+                        className={[index > 0 ? 'pt-2 border-t' : '', index < groups.length - 1 ? 'pb-2' : ''].join(
+                            ' '
+                        )}
                     >
                         <SelectLabel>{label}</SelectLabel>
                         {values.map(value => (

@@ -39,7 +39,6 @@ export default function Index() {
         }
     }, [room, searchParams, setSearchParams])
 
-
     function onRoomGenerate() {
         const generated = randomName()
         setSearchParam(KEY_ROOM, generated)
@@ -111,7 +110,7 @@ export default function Index() {
                             {legalLinks.map((link, index) => (
                                 <React.Fragment key={link.href}>
                                     {index > 0 ? <span aria-hidden="true">·</span> : null}
-                                    <a href={link.href} target="_blank" rel="noopener">
+                                    <a href={link.href} target="_blank" rel="noopener noreferrer">
                                         {link.label}
                                     </a>
                                 </React.Fragment>

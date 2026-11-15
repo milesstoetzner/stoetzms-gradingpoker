@@ -19,7 +19,7 @@ module.exports = {
         commonjs: true,
         es6: true,
     },
-    ignorePatterns: ['!**/.server', '!**/.client'],
+    ignorePatterns: ['build', '!**/.server', '!**/.client'],
 
     // Base config
     extends: ['eslint:recommended', 'prettier'],
@@ -35,6 +35,10 @@ module.exports = {
                 'plugin:react-hooks/recommended',
                 'plugin:jsx-a11y/recommended',
             ],
+            rules: {
+                // Props are typed with TypeScript
+                'react/prop-types': 'off',
+            },
             settings: {
                 react: {
                     version: 'detect',
@@ -67,6 +71,14 @@ module.exports = {
                 },
             },
             extends: ['plugin:@typescript-eslint/recommended', 'plugin:import/recommended', 'plugin:import/typescript'],
+        },
+
+        // Generated components (shadcn/ui): headings get their content from the caller
+        {
+            files: ['app/components/ui/**/*.tsx'],
+            rules: {
+                'jsx-a11y/heading-has-content': 'off',
+            },
         },
 
         // Node

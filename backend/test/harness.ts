@@ -2,7 +2,14 @@ import {ChildProcess, spawn} from 'node:child_process'
 import {randomUUID} from 'node:crypto'
 import {createServer} from 'node:net'
 import {io, Socket} from 'socket.io-client'
-import {ClientToServerEvents, Notification, RoomEvent, RoomState, ServerEvents, ServerToClientEvents} from '../../spec/types'
+import {
+    ClientToServerEvents,
+    Notification,
+    RoomEvent,
+    RoomState,
+    ServerEvents,
+    ServerToClientEvents,
+} from '../../spec/types'
 import {RoomSync} from '../../spec/sync'
 
 export type Client = Socket<ServerToClientEvents, ClientToServerEvents> & {

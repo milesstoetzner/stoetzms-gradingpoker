@@ -1,5 +1,14 @@
 import * as z from 'zod/v4'
-import {Ack, BALLOT_VALUES, COMMENT_MAX_LENGTH, JoinRoom, RemoveUser, SetComment, SetVote, validateName} from '../../spec/types'
+import {
+    Ack,
+    BALLOT_VALUES,
+    COMMENT_MAX_LENGTH,
+    JoinRoom,
+    RemoveUser,
+    SetComment,
+    SetVote,
+    validateName,
+} from '../../spec/types'
 
 const _name = z
     .string()
@@ -16,7 +25,7 @@ const _joinRoom = z.object({
     seed: z.boolean().optional(),
 })
 
-export function joinRoom(input: any): JoinRoom {
+export function joinRoom(input: unknown): JoinRoom {
     return _joinRoom.parse(input)
 }
 
@@ -24,7 +33,7 @@ const _setVote = z.object({
     vote: z.string().refine(it => BALLOT_VALUES.includes(it), 'Unknown vote'),
 })
 
-export function setVote(input: any): SetVote {
+export function setVote(input: unknown): SetVote {
     return _setVote.parse(input)
 }
 
@@ -32,7 +41,7 @@ const _setComment = z.object({
     comment: z.string().trim().max(COMMENT_MAX_LENGTH),
 })
 
-export function setComment(input: any): SetComment {
+export function setComment(input: unknown): SetComment {
     return _setComment.parse(input)
 }
 
@@ -40,11 +49,11 @@ const _removeUser = z.object({
     user: _name,
 })
 
-export function removeUser(input: any): RemoveUser {
+export function removeUser(input: unknown): RemoveUser {
     return _removeUser.parse(input)
 }
 
-export function ack(input: any): input is Ack {
+export function ack(input: unknown): input is Ack {
     if (typeof input !== 'function') throw new Error(`${input} is not a function`)
     return true
 }
