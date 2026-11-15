@@ -102,7 +102,7 @@ Pull requests and merges to `main` run the checks (`.github/workflows/ci.yaml`).
 Pushing a version tag (without a leading `v`) runs the checks and then publishes that version (`.github/workflows/release.yaml`):
 
 - the images `ghcr.io/milesstoetzner/stoetzms-gradingpoker:backend-<version>` and `:frontend-<version>`,
-- the Helm chart `oci://ghcr.io/milesstoetzner/charts/gradingpoker` in the same version, which uses those images by default.
+- the Helm chart `oci://ghcr.io/milesstoetzner/charts/stoetzms-gradingpoker` in the same version, which uses those images by default.
 
 ```
 git tag 1.0.0 && git push origin 1.0.0
@@ -127,7 +127,7 @@ Environment variables of the images, and the chart values that set them. Other b
 Deploy the Helm chart with your own values (host, Gateway and so on, see `chart/values.yaml`).
 
 ```
-helm upgrade --install gradingpoker oci://ghcr.io/milesstoetzner/charts/gradingpoker --version <version> --namespace gradingpoker --create-namespace -f values.yaml
+helm upgrade --install gradingpoker oci://ghcr.io/milesstoetzner/charts/stoetzms-gradingpoker --version <version> --namespace gradingpoker --create-namespace -f values.yaml
 ```
 
 Do not pass `--wait` on the first install: the Redis Cluster is formed in a hook after the install, and the backends only become ready once it exists.

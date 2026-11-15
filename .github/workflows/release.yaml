@@ -61,5 +61,5 @@ jobs:
       - run: helm dependency build chart
       # The app version is the default image tag of the chart
       - run: helm package chart --version "${{ steps.version.outputs.version }}" --app-version "${{ steps.version.outputs.version }}"
-      - run: helm push "gradingpoker-${{ steps.version.outputs.version }}.tgz" "oci://ghcr.io/${{ github.repository_owner }}/charts"
-      - run: echo "Published \`oci://ghcr.io/${{ github.repository_owner }}/charts/gradingpoker\` version \`${{ steps.version.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
+      - run: helm push "stoetzms-gradingpoker-${{ steps.version.outputs.version }}.tgz" "oci://ghcr.io/${{ github.repository_owner }}/charts"
+      - run: echo "Published \`oci://ghcr.io/${{ github.repository_owner }}/charts/stoetzms-gradingpoker\` version \`${{ steps.version.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
