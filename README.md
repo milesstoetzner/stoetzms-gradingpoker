@@ -135,3 +135,8 @@ Check the result, which should be `cluster_state:ok`:
 ```
 kubectl exec -n $NAMESPACE $RELEASE-redis-0 -c redis -- sh -c 'REDISCLI_AUTH=$REDIS_PASSWORD redis-cli cluster info' | head -1
 ```
+
+
+## License
+
+[Apache License 2.0](LICENSE)
